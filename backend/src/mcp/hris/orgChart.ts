@@ -22,26 +22,35 @@ export function listManagers(): Employee[] {
 
 /**
  * Direct + indirect reportees of a manager, as a tree. Walks the flat
- * `manager` pointer in the mock HRIS data recursively — a real HRIS
- * connector would likely expose this as a single endpoint instead, in which
- * case this function is what gets replaced in Phase 1, not its callers.
+ * `manager` pointer in the HRIS data recursively — a real HRIS connector
+ * would likely expose this as a single endpoint instead, in which case this
+ * function is what gets replaced in Phase 1, not its callers.
+ *
+ * Cycle-safe: the real sheet has at least one employee listed as their own
+ * manager (and reporting-chain cycles in general aren't something to trust
+ * a spreadsheet to be free of), so each branch tracks the IDs already seen
+ * on its path from the root and stops rather than recursing forever.
  */
 export function getReporteeTree(managerId: string): ReporteeNode[] {
-  function childrenOf(id: string, depth: number): ReporteeNode[] {
-    return EMPLOYEES.filter((e) => e.manager === id && e.status === "active").map((e) => {
-      const reports = childrenOf(e.employeeId, depth + 1);
-      return {
-        employeeId: e.employeeId,
-        name: e.name,
-        role: e.role,
-        team: e.team,
-        depth,
-        directReportCount: reports.length,
-        reports,
-      };
-    });
+  function childrenOf(id: string, depth: number, seen: ReadonlySet<string>): ReporteeNode[] {
+    return EMPLOYEES.filter((e) => e.manager === id && e.status === "active" && !seen.has(e.employeeId)).map(
+      (e) => {
+        const nextSeen = new Set(seen);
+        nextSeen.add(e.employeeId);
+        const reports = childrenOf(e.employeeId, depth + 1, nextSeen);
+        return {
+          employeeId: e.employeeId,
+          name: e.name,
+          role: e.role,
+          team: e.team,
+          depth,
+          directReportCount: reports.length,
+          reports,
+        };
+      },
+    );
   }
-  return childrenOf(managerId, 1);
+  return childrenOf(managerId, 1, new Set([managerId]));
 }
 
 /** Flattens a reportee tree into a single list, e.g. for a dropdown. */
