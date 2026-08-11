@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+backend/data/
+backend/service-account.json
+*.tsbuildinfo
+.claude/settings.local.json
