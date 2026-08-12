@@ -21,14 +21,14 @@ export default function HomePage({ onNavigate }: HomePageProps) {
   return (
     <div className="home">
       <section className="hero">
-        <p className="hero-eyebrow">Internal · People Ops</p>
+        <p className="hero-eyebrow">For every manager at Recykal</p>
         <h1 className="hero-title">
           Workforce decisions,
           <br />
           backed by real data.
         </h1>
         <p className="hero-subtitle">
-          Plan headcount, set KRA/KPIs, and keep every people decision auditable — in one place.
+          Plan headcount, set KRA/KPIs for your team, and keep every people decision auditable — in one place.
         </p>
       </section>
 

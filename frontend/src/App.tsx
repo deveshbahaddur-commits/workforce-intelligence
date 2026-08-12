@@ -13,9 +13,9 @@ export default function App() {
   return (
     <div className="app">
       <Header view={view} onNavigate={setView} />
-      <main className="app-main">
+      <main className={`app-main${view === "workforce-planning" ? " app-main--full" : ""}`}>
         {view === "home" && <HomePage onNavigate={setView} />}
-        {view === "workforce-planning" && <ChatWindow />}
+        {view === "workforce-planning" && <ChatWindow onBackHome={() => setView("home")} />}
         {view === "kra-kpi" && <KraKpiPage />}
       </main>
     </div>

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import * as api from "../api/kraKpiClient.js";
+import * as chatApi from "../api/chatSessionClient.js";
 import ReporteeTree from "./ReporteeTree.js";
+import ChatInput from "./ChatInput.js";
+import { downloadScorecard } from "../utils/scorecardExport.js";
 
 type TextField = Exclude<keyof api.KpiItem, "weightagePercent">;
 
@@ -47,9 +50,12 @@ export default function KraKpiPage() {
   const [reporteeTree, setReporteeTree] = useState<api.ReporteeNode[]>([]);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [messages, setMessages] = useState<api.KpiDraftChatMessage[]>([]);
+  const [chatSessions, setChatSessions] = useState<chatApi.ChatSessionSummary[]>([]);
+  const [chatSessionId, setChatSessionId] = useState<number | null>(null);
   const [draft, setDraft] = useState<api.KpiItem[]>([]);
   const [savedSets, setSavedSets] = useState<api.KpiSet[]>([]);
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -71,29 +77,74 @@ export default function KraKpiPage() {
     setMessages([]);
     setDraft([]);
     setSaveStatus("idle");
+    setChatSessionId(null);
     if (!employeeId) {
       setSavedSets([]);
+      setChatSessions([]);
       return;
     }
     api.getKpiSets(employeeId).then(setSavedSets).catch((e) => setError(e.message));
+    chatApi
+      .listChatSessions({ kind: "kra-kpi", managerId, employeeId })
+      .then(setChatSessions)
+      .catch((e) => setError(e.message));
   }, [employeeId]);
 
   const selectedEmployee = findInTree(reporteeTree, employeeId);
   const weightageSum = draft.reduce((sum, item) => sum + (Number(item.weightagePercent) || 0), 0);
 
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim() || !employeeId || chatLoading) return;
-    const newHistory: api.KpiDraftChatMessage[] = [...messages, { role: "user", text: input.trim() }];
+  async function ensureChatSession(): Promise<number> {
+    if (chatSessionId) return chatSessionId;
+    const created = await chatApi.createChatSession({ kind: "kra-kpi", managerId, employeeId });
+    setChatSessionId(created.id);
+    setChatSessions((prev) => [created, ...prev]);
+    return created.id;
+  }
+
+  async function handleSelectSession(id: number) {
+    setError(null);
+    try {
+      const session = await chatApi.getChatSession(id);
+      setChatSessionId(session.id);
+      setMessages(session.messages);
+      setDraft([]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load that chat.");
+    }
+  }
+
+  function handleNewChat() {
+    setChatSessionId(null);
+    setMessages([]);
+    setDraft([]);
+    setInput("");
+    setAttachments([]);
+  }
+
+  async function handleSend() {
+    if ((!input.trim() && attachments.length === 0) || !employeeId || chatLoading) return;
+    const text = input.trim();
+    const attachmentNames = attachments.map((f) => f.name);
+    const displayText = attachmentNames.length > 0 ? `${text}\n\n📎 ${attachmentNames.join(", ")}` : text;
+    const newHistory: api.KpiDraftChatMessage[] = [...messages, { role: "user", text: displayText }];
     setMessages(newHistory);
     setInput("");
+    setAttachments([]);
     setChatLoading(true);
     setError(null);
     try {
       const result = await api.draftKpis({ employeeId, managerId, history: newHistory });
-      setMessages([...newHistory, { role: "model", text: result.reply }]);
+      const withReply: api.KpiDraftChatMessage[] = [...newHistory, { role: "model", text: result.reply }];
+      setMessages(withReply);
       setDraft(result.draftKpis);
       setSaveStatus("idle");
+      try {
+        const id = await ensureChatSession();
+        const saved = await chatApi.saveChatSessionMessages(id, withReply);
+        setChatSessions((prev) => [saved, ...prev.filter((s) => s.id !== saved.id)]);
+      } catch (persistErr) {
+        console.error("Failed to persist KRA/KPI chat session:", persistErr);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -163,11 +214,50 @@ export default function KraKpiPage() {
               KRA/KPIs for {selectedEmployee.name} <span className="kra-kpi-role">({selectedEmployee.role})</span>
             </h2>
             {savedSets.length > 0 && (
-              <p className="kra-kpi-history">
-                {savedSets.length} previously saved KPI set{savedSets.length === 1 ? "" : "s"} for this employee
-                (most recent: {new Date(savedSets[0].createdAt).toLocaleDateString()}).
-              </p>
+              <div className="kra-kpi-history">
+                <h3>Saved KPI sets</h3>
+                <ul className="saved-set-list">
+                  {savedSets.map((set) => (
+                    <li key={set.id} className="saved-set-row">
+                      <span>{new Date(set.createdAt).toLocaleDateString()}</span>
+                      <button
+                        type="button"
+                        className="saved-set-download"
+                        onClick={() =>
+                          downloadScorecard(set.items, {
+                            employee: {
+                              name: set.employeeName,
+                              role: selectedEmployee.role,
+                              team: selectedEmployee.team,
+                            },
+                            managerName: set.managerName,
+                            createdAt: set.createdAt,
+                          })
+                        }
+                      >
+                        Download scorecard
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
+
+            <div className="kra-kpi-chat-sessions">
+              <button type="button" className="kra-kpi-session-pill kra-kpi-session-pill--new" onClick={handleNewChat}>
+                + New chat
+              </button>
+              {chatSessions.map((s) => (
+                <button
+                  type="button"
+                  key={s.id}
+                  className={`kra-kpi-session-pill${s.id === chatSessionId ? " kra-kpi-session-pill--active" : ""}`}
+                  onClick={() => handleSelectSession(s.id)}
+                >
+                  {s.title ?? "New conversation"}
+                </button>
+              ))}
+            </div>
 
             <div className="kra-kpi-chat">
               <div className="kra-kpi-chat-history">
@@ -184,17 +274,15 @@ export default function KraKpiPage() {
                 ))}
                 {chatLoading && <div className="chat-message chat-message--assistant chat-message--loading">Drafting…</div>}
               </div>
-              <form className="chat-input-row" onSubmit={handleSend}>
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="e.g. Focus on reducing churn and mentoring the two junior engineers…"
-                  disabled={chatLoading}
-                />
-                <button type="submit" disabled={chatLoading || !input.trim()}>
-                  Send
-                </button>
-              </form>
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSubmit={handleSend}
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
+                placeholder="e.g. Focus on reducing churn and mentoring the two junior engineers… (Enter to send, Shift+Enter for a new line)"
+                disabled={chatLoading}
+              />
             </div>
 
             {draft.length > 0 && (

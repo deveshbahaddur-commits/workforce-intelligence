@@ -8,6 +8,8 @@ import { listManagers, getReporteeTree } from "./mcp/hris/orgChart.js";
 import { draftKpis } from "./kpi/kpiAgentRunner.js";
 import { saveKpiSet, listKpiSetsForEmployee } from "./kpi/kpiStore.js";
 import type { KpiDraftChatMessage, KpiItem } from "./kpi/types.js";
+import { createSession, listSessions, getSession, replaceMessages } from "./chat/chatSessionStore.js";
+import type { ChatSessionKind, ChatSessionMessage } from "./chat/types.js";
 
 const app = express();
 app.use(cors());
@@ -125,6 +127,63 @@ app.get("/api/kpi/sets", (req, res) => {
     return;
   }
   res.json(listKpiSetsForEmployee(employeeId));
+});
+
+// --- Chat session persistence (sidebar history) ---
+// Sessions are keyed by managerId (and employeeId for kra-kpi chats) — the
+// same pseudo-identity used everywhere else pre-auth, not a real user account.
+
+const CHAT_KINDS: ChatSessionKind[] = ["workforce-planning", "kra-kpi"];
+
+function parseKind(value: unknown): ChatSessionKind | null {
+  return typeof value === "string" && (CHAT_KINDS as string[]).includes(value) ? (value as ChatSessionKind) : null;
+}
+
+app.post("/api/chat/sessions", (req, res) => {
+  const kind = parseKind(req.body?.kind);
+  const managerId = typeof req.body?.managerId === "string" ? req.body.managerId : "";
+  const employeeId = typeof req.body?.employeeId === "string" ? req.body.employeeId : null;
+  if (!kind || !managerId) {
+    res.status(400).json({ error: "Request body must include a valid kind and managerId." });
+    return;
+  }
+  res.json(createSession({ kind, managerId, employeeId }));
+});
+
+app.get("/api/chat/sessions", (req, res) => {
+  const kind = parseKind(req.query.kind);
+  const managerId = typeof req.query.managerId === "string" ? req.query.managerId : "";
+  const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : null;
+  if (!kind || !managerId) {
+    res.status(400).json({ error: "Query params kind and managerId are required." });
+    return;
+  }
+  res.json(listSessions({ kind, managerId, employeeId }));
+});
+
+app.get("/api/chat/sessions/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const session = Number.isInteger(id) ? getSession(id) : null;
+  if (!session) {
+    res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
+    return;
+  }
+  res.json(session);
+});
+
+app.put("/api/chat/sessions/:id/messages", (req, res) => {
+  const id = Number(req.params.id);
+  const messages = req.body?.messages;
+  if (!Number.isInteger(id) || !Array.isArray(messages)) {
+    res.status(400).json({ error: "Request body must include a messages array." });
+    return;
+  }
+  const session = replaceMessages(id, messages as ChatSessionMessage[]);
+  if (!session) {
+    res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
+    return;
+  }
+  res.json(session);
 });
 
 // Read-only visibility into the audit log — handy for demoing the guardrail
