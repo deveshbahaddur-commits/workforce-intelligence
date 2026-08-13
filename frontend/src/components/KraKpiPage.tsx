@@ -3,7 +3,7 @@ import * as api from "../api/kraKpiClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
 import ReporteeTree from "./ReporteeTree.js";
 import ChatInput from "./ChatInput.js";
-import KraCardEditor from "./KraCardEditor.js";
+import KraTableRow from "./KraTableRow.js";
 import { downloadScorecard } from "../utils/scorecardExport.js";
 
 const BLANK_ITEM: api.KpiItem = {
@@ -24,6 +24,20 @@ const BLANK_ITEM: api.KpiItem = {
   checklist: [],
   defined: false,
 };
+
+const TABLE_HEADERS = [
+  "Role",
+  "KRA",
+  "KPI",
+  "Goal (Annual)",
+  "Source of Tracking",
+  "1 - Needs Improvement",
+  "2 - Below Expectation",
+  "3 - Meets Expectation",
+  "4 - Above Expectation",
+  "5 - Exceeds Expectation",
+  "Weightage %",
+];
 
 function findInTree(nodes: api.ReporteeNode[], id: string | null): api.ReporteeNode | null {
   if (!id) return null;
@@ -255,14 +269,31 @@ export default function KraKpiPage() {
                     Weightage total: {weightageSum}% {weightageSum !== 100 && "(should be 100%)"}
                   </span>
                 </div>
-                <div className="kra-cards-list">
-                  {draft.map((item, i) => (
-                    <KraCardEditor key={i} item={item} index={i} onChange={updateItem} onRemove={removeRow} />
-                  ))}
+                <p className="kra-details-hint">
+                  Click "Details" on a row to set H1/H2 goals, tracked metrics, and an optional checklist for that
+                  KRA — these carry through to the downloaded scorecard.
+                </p>
+                <div className="kpi-table-scroll">
+                  <table className="kpi-table">
+                    <thead>
+                      <tr>
+                        {TABLE_HEADERS.map((label) => (
+                          <th key={label}>{label}</th>
+                        ))}
+                        <th></th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {draft.map((item, i) => (
+                        <KraTableRow key={i} item={item} index={i} onChange={updateItem} onRemove={removeRow} />
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <div className="kpi-table-actions">
                   <button type="button" onClick={addRow}>
-                    + Add KRA
+                    + Add row
                   </button>
                   <button type="button" className="save-button" onClick={handleSave} disabled={saveStatus === "saving"}>
                     {saveStatus === "saving" ? "Saving…" : "Save KPI set"}

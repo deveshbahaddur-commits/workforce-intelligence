@@ -902,71 +902,107 @@ body {
   color: #8a5a10;
 }
 
-.kra-cards-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.kra-details-hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: -4px 0 12px;
 }
 
-.kra-card-editor {
-  background: var(--card);
+.kpi-table-scroll {
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  background: var(--card);
 }
 
-.kra-card-editor-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.kpi-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 1500px;
 }
 
-.kra-card-editor-index {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+.kpi-table th {
+  background: var(--paper);
+  text-align: left;
   font-size: 0.7rem;
-  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--text-muted);
-  flex-shrink: 0;
+  padding: 10px 8px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
 }
 
-.kra-card-editor-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  font-family: inherit;
+.kpi-table td {
+  padding: 4px;
+  border-bottom: 1px solid #f0f0ef;
+  vertical-align: top;
+}
+
+.kpi-table input {
+  width: 160px;
+  padding: 7px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 0.82rem;
   background: transparent;
 }
 
-.kra-card-editor-title:hover,
-.kra-card-editor-title:focus {
+.kpi-table input:hover,
+.kpi-table input:focus {
   border-color: var(--border);
-  background: var(--paper);
+  background: var(--card);
 }
 
-.kra-card-editor-weight {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  flex-shrink: 0;
+.kpi-table .weightage-input {
+  width: 70px;
 }
 
-.kra-card-editor-weight input {
-  width: 56px;
-  padding: 6px 7px;
+.row-remove {
+  background: none;
+  border: none;
+  color: #a3a8a5;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.row-remove:hover {
+  color: #a3282b;
+}
+
+.row-expand {
+  background: none;
   border: 1px solid var(--border);
   border-radius: 6px;
+  color: var(--text-muted);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+
+.row-expand:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.kra-row-details-tr td {
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.kra-row-details {
+  background: var(--paper);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 1500px;
 }
 
 .kra-card-editor-defined {
@@ -978,21 +1014,6 @@ body {
   color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.kra-card-editor-remove {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: #a3a8a5;
-  font-size: 1.3rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-
-.kra-card-editor-remove:hover {
-  color: #a3282b;
 }
 
 .kra-card-editor-field {
@@ -1018,13 +1039,7 @@ body {
 
 .kra-card-editor-goals {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.kra-card-editor-ratings {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
 }
 
