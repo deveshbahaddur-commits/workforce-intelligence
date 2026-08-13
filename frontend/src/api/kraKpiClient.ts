@@ -15,11 +15,29 @@ export interface ReporteeNode {
   reports: ReporteeNode[];
 }
 
+export interface KraMetric {
+  name: string;
+  baseline: number;
+  target: number;
+  unit: string;
+  direction: "up" | "down";
+  note: string;
+  group?: string;
+  milestone?: string;
+}
+
+export interface KraChecklistItem {
+  name: string;
+  done: boolean;
+}
+
 export interface KpiItem {
   role: string;
   kra: string;
-  kpi: string;
-  goalDescription: string;
+  goalAnnual: string;
+  goalH1: string;
+  goalH2: string;
+  kpiTask: string;
   weightagePercent: number;
   sourceOfTracking: string;
   ratingNeedsImprovement: string;
@@ -27,6 +45,9 @@ export interface KpiItem {
   ratingMeetsExpectation: string;
   ratingAboveExpectation: string;
   ratingExceedsExpectation: string;
+  metrics: KraMetric[];
+  checklist: KraChecklistItem[];
+  defined: boolean;
 }
 
 export interface KpiSet {

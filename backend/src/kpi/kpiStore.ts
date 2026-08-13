@@ -20,6 +20,9 @@ db.exec(`
   );
 `);
 
+// metrics_json / checklist_json hold KraMetric[] / KraChecklistItem[] as
+// JSON text — both are small, per-row, always read/written whole, so a
+// child table would only add join complexity with no real benefit here.
 db.exec(`
   CREATE TABLE IF NOT EXISTS kpi_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,8 +30,10 @@ db.exec(`
     sort_order INTEGER NOT NULL,
     role TEXT NOT NULL,
     kra TEXT NOT NULL,
-    kpi TEXT NOT NULL,
-    goal_description TEXT NOT NULL,
+    goal_annual TEXT NOT NULL,
+    goal_h1 TEXT NOT NULL,
+    goal_h2 TEXT NOT NULL,
+    kpi_task TEXT NOT NULL,
     weightage_percent REAL NOT NULL,
     source_of_tracking TEXT NOT NULL,
     rating_needs_improvement TEXT NOT NULL,
@@ -36,6 +41,9 @@ db.exec(`
     rating_meets_expectation TEXT NOT NULL,
     rating_above_expectation TEXT NOT NULL,
     rating_exceeds_expectation TEXT NOT NULL,
+    metrics_json TEXT NOT NULL,
+    checklist_json TEXT NOT NULL,
+    defined INTEGER NOT NULL,
     FOREIGN KEY (set_id) REFERENCES kpi_sets(id)
   );
 `);
@@ -47,13 +55,13 @@ const insertSetStmt = db.prepare(`
 
 const insertItemStmt = db.prepare(`
   INSERT INTO kpi_items (
-    set_id, sort_order, role, kra, kpi, goal_description, weightage_percent, source_of_tracking,
-    rating_needs_improvement, rating_below_expectation, rating_meets_expectation,
-    rating_above_expectation, rating_exceeds_expectation
+    set_id, sort_order, role, kra, goal_annual, goal_h1, goal_h2, kpi_task, weightage_percent,
+    source_of_tracking, rating_needs_improvement, rating_below_expectation, rating_meets_expectation,
+    rating_above_expectation, rating_exceeds_expectation, metrics_json, checklist_json, defined
   ) VALUES (
-    @setId, @sortOrder, @role, @kra, @kpi, @goalDescription, @weightagePercent, @sourceOfTracking,
-    @ratingNeedsImprovement, @ratingBelowExpectation, @ratingMeetsExpectation,
-    @ratingAboveExpectation, @ratingExceedsExpectation
+    @setId, @sortOrder, @role, @kra, @goalAnnual, @goalH1, @goalH2, @kpiTask, @weightagePercent,
+    @sourceOfTracking, @ratingNeedsImprovement, @ratingBelowExpectation, @ratingMeetsExpectation,
+    @ratingAboveExpectation, @ratingExceedsExpectation, @metricsJson, @checklistJson, @defined
   )
 `);
 
@@ -67,8 +75,10 @@ function rowToItem(r: Record<string, unknown>): KpiItem {
   return {
     role: r.role as string,
     kra: r.kra as string,
-    kpi: r.kpi as string,
-    goalDescription: r.goal_description as string,
+    goalAnnual: r.goal_annual as string,
+    goalH1: r.goal_h1 as string,
+    goalH2: r.goal_h2 as string,
+    kpiTask: r.kpi_task as string,
     weightagePercent: r.weightage_percent as number,
     sourceOfTracking: r.source_of_tracking as string,
     ratingNeedsImprovement: r.rating_needs_improvement as string,
@@ -76,6 +86,9 @@ function rowToItem(r: Record<string, unknown>): KpiItem {
     ratingMeetsExpectation: r.rating_meets_expectation as string,
     ratingAboveExpectation: r.rating_above_expectation as string,
     ratingExceedsExpectation: r.rating_exceeds_expectation as string,
+    metrics: JSON.parse(r.metrics_json as string),
+    checklist: JSON.parse(r.checklist_json as string),
+    defined: Boolean(r.defined),
   };
 }
 
@@ -114,8 +127,10 @@ export function saveKpiSet(params: {
       sortOrder: index,
       role: item.role,
       kra: item.kra,
-      kpi: item.kpi,
-      goalDescription: item.goalDescription,
+      goalAnnual: item.goalAnnual,
+      goalH1: item.goalH1,
+      goalH2: item.goalH2,
+      kpiTask: item.kpiTask,
       weightagePercent: item.weightagePercent,
       sourceOfTracking: item.sourceOfTracking,
       ratingNeedsImprovement: item.ratingNeedsImprovement,
@@ -123,6 +138,9 @@ export function saveKpiSet(params: {
       ratingMeetsExpectation: item.ratingMeetsExpectation,
       ratingAboveExpectation: item.ratingAboveExpectation,
       ratingExceedsExpectation: item.ratingExceedsExpectation,
+      metricsJson: JSON.stringify(item.metrics ?? []),
+      checklistJson: JSON.stringify(item.checklist ?? []),
+      defined: item.defined ? 1 : 0,
     });
   });
 

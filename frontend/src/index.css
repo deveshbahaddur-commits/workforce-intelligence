@@ -869,7 +869,7 @@ body {
   gap: 10px;
 }
 
-.kpi-table-wrap {
+.kra-cards-wrap {
   margin-top: 22px;
 }
 
@@ -902,68 +902,225 @@ body {
   color: #8a5a10;
 }
 
-.kpi-table-scroll {
-  overflow-x: auto;
+.kra-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.kra-card-editor {
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--card);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.kpi-table {
-  border-collapse: collapse;
-  width: 100%;
-  min-width: 1400px;
+.kra-card-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.kpi-table th {
-  background: var(--paper);
-  text-align: left;
+.kra-card-editor-index {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-weight: 700;
   color: var(--text-muted);
-  padding: 10px 8px;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.kpi-table td {
-  padding: 4px;
-  border-bottom: 1px solid #f0f0ef;
-  vertical-align: top;
-}
-
-.kpi-table input {
-  width: 160px;
-  padding: 7px 8px;
+.kra-card-editor-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: inherit;
   border: 1px solid transparent;
   border-radius: 6px;
-  font-family: inherit;
-  font-size: 0.82rem;
+  padding: 6px 8px;
   background: transparent;
 }
 
-.kpi-table input:hover,
-.kpi-table input:focus {
+.kra-card-editor-title:hover,
+.kra-card-editor-title:focus {
   border-color: var(--border);
-  background: var(--card);
+  background: var(--paper);
 }
 
-.kpi-table .weightage-input {
-  width: 70px;
+.kra-card-editor-weight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
-.row-remove {
+.kra-card-editor-weight input {
+  width: 56px;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.kra-card-editor-defined {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.kra-card-editor-remove {
+  flex-shrink: 0;
   background: none;
   border: none;
   color: #a3a8a5;
-  font-size: 1.15rem;
+  font-size: 1.3rem;
   line-height: 1;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 2px 6px;
 }
 
-.row-remove:hover {
+.kra-card-editor-remove:hover {
+  color: #a3282b;
+}
+
+.kra-card-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.kra-card-editor-field input,
+.kra-card-editor-field textarea {
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.kra-card-editor-goals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.kra-card-editor-ratings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.kra-card-editor-section {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.kra-card-editor-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.kra-card-editor-section-head h4 {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.kra-card-editor-section-head button {
+  border: 1px solid var(--border);
+  background: var(--paper);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.kra-card-editor-section-head button:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.kra-card-editor-empty {
+  color: #999;
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.kra-metric-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.7fr 0.7fr 0.6fr 1.1fr 1.3fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.kra-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.kra-metric-row input,
+.kra-metric-row select,
+.kra-checklist-name {
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 100%;
+}
+
+.kra-checklist-name {
+  flex: 1;
+}
+
+.kra-checklist-done {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.kra-metric-remove {
+  background: none;
+  border: none;
+  color: #a3a8a5;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  justify-self: start;
+}
+
+.kra-metric-remove:hover {
   color: #a3282b;
 }
 

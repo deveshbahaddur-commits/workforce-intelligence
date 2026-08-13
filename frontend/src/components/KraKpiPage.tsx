@@ -3,15 +3,16 @@ import * as api from "../api/kraKpiClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
 import ReporteeTree from "./ReporteeTree.js";
 import ChatInput from "./ChatInput.js";
+import KraCardEditor from "./KraCardEditor.js";
 import { downloadScorecard } from "../utils/scorecardExport.js";
-
-type TextField = Exclude<keyof api.KpiItem, "weightagePercent">;
 
 const BLANK_ITEM: api.KpiItem = {
   role: "",
   kra: "",
-  kpi: "",
-  goalDescription: "",
+  goalAnnual: "",
+  goalH1: "",
+  goalH2: "",
+  kpiTask: "",
   weightagePercent: 0,
   sourceOfTracking: "",
   ratingNeedsImprovement: "",
@@ -19,20 +20,10 @@ const BLANK_ITEM: api.KpiItem = {
   ratingMeetsExpectation: "",
   ratingAboveExpectation: "",
   ratingExceedsExpectation: "",
+  metrics: [],
+  checklist: [],
+  defined: false,
 };
-
-const COLUMNS: Array<{ field: TextField; label: string }> = [
-  { field: "role", label: "Role" },
-  { field: "kra", label: "KRA" },
-  { field: "kpi", label: "KPI" },
-  { field: "goalDescription", label: "Goal Description" },
-  { field: "sourceOfTracking", label: "Source of Tracking" },
-  { field: "ratingNeedsImprovement", label: "1 - Needs Improvement" },
-  { field: "ratingBelowExpectation", label: "2 - Below Expectation" },
-  { field: "ratingMeetsExpectation", label: "3 - Meets Expectation" },
-  { field: "ratingAboveExpectation", label: "4 - Above Expectation" },
-  { field: "ratingExceedsExpectation", label: "5 - Exceeds Expectation" },
-];
 
 function findInTree(nodes: api.ReporteeNode[], id: string | null): api.ReporteeNode | null {
   if (!id) return null;
@@ -152,12 +143,8 @@ export default function KraKpiPage() {
     }
   }
 
-  function updateTextField(index: number, field: TextField, value: string) {
-    setDraft((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
-  }
-
-  function updateWeightage(index: number, value: string) {
-    setDraft((prev) => prev.map((item, i) => (i === index ? { ...item, weightagePercent: Number(value) || 0 } : item)));
+  function updateItem(index: number, item: api.KpiItem) {
+    setDraft((prev) => prev.map((existing, i) => (i === index ? item : existing)));
   }
 
   function removeRow(index: number) {
@@ -261,53 +248,21 @@ export default function KraKpiPage() {
             </div>
 
             {draft.length > 0 && (
-              <div className="kpi-table-wrap">
+              <div className="kra-cards-wrap">
                 <div className="kpi-table-header-row">
-                  <h3>Draft KPIs</h3>
+                  <h3>Draft KRAs</h3>
                   <span className={`weightage-total${weightageSum === 100 ? " weightage-total--ok" : " weightage-total--warn"}`}>
                     Weightage total: {weightageSum}% {weightageSum !== 100 && "(should be 100%)"}
                   </span>
                 </div>
-                <div className="kpi-table-scroll">
-                  <table className="kpi-table">
-                    <thead>
-                      <tr>
-                        {COLUMNS.map((col) => (
-                          <th key={col.field}>{col.label}</th>
-                        ))}
-                        <th>Weightage %</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {draft.map((item, i) => (
-                        <tr key={i}>
-                          {COLUMNS.map((col) => (
-                            <td key={col.field}>
-                              <input value={item[col.field]} onChange={(e) => updateTextField(i, col.field, e.target.value)} />
-                            </td>
-                          ))}
-                          <td>
-                            <input
-                              type="number"
-                              className="weightage-input"
-                              value={item.weightagePercent}
-                              onChange={(e) => updateWeightage(i, e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label="Remove row">
-                              ×
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="kra-cards-list">
+                  {draft.map((item, i) => (
+                    <KraCardEditor key={i} item={item} index={i} onChange={updateItem} onRemove={removeRow} />
+                  ))}
                 </div>
                 <div className="kpi-table-actions">
                   <button type="button" onClick={addRow}>
-                    + Add row
+                    + Add KRA
                   </button>
                   <button type="button" className="save-button" onClick={handleSave} disabled={saveStatus === "saving"}>
                     {saveStatus === "saving" ? "Saving…" : "Save KPI set"}
