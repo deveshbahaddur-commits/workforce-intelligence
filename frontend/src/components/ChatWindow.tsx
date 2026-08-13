@@ -132,7 +132,7 @@ export default function ChatWindow({ onBackHome }: ChatWindowProps) {
   }
 
   return (
-    <div className="chat-shell">
+    <div className="chat-shell chat-theme-dark">
       <div className="chat-sidebar-wrap">
         <label className="manager-picker chat-sidebar-manager">
           Acting as manager

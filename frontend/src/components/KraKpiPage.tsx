@@ -213,76 +213,51 @@ export default function KraKpiPage() {
             <h2>
               KRA/KPIs for {selectedEmployee.name} <span className="kra-kpi-role">({selectedEmployee.role})</span>
             </h2>
-            {savedSets.length > 0 && (
-              <div className="kra-kpi-history">
-                <h3>Saved KPI sets</h3>
-                <ul className="saved-set-list">
-                  {savedSets.map((set) => (
-                    <li key={set.id} className="saved-set-row">
-                      <span>{new Date(set.createdAt).toLocaleDateString()}</span>
-                      <button
-                        type="button"
-                        className="saved-set-download"
-                        onClick={() =>
-                          downloadScorecard(set.items, {
-                            employee: {
-                              name: set.employeeName,
-                              role: selectedEmployee.role,
-                              team: selectedEmployee.team,
-                            },
-                            managerName: set.managerName,
-                            createdAt: set.createdAt,
-                          })
-                        }
-                      >
-                        Download scorecard
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
-            <div className="kra-kpi-chat-sessions">
-              <button type="button" className="kra-kpi-session-pill kra-kpi-session-pill--new" onClick={handleNewChat}>
-                + New chat
-              </button>
-              {chatSessions.map((s) => (
-                <button
-                  type="button"
-                  key={s.id}
-                  className={`kra-kpi-session-pill${s.id === chatSessionId ? " kra-kpi-session-pill--active" : ""}`}
-                  onClick={() => handleSelectSession(s.id)}
-                >
-                  {s.title ?? "New conversation"}
+            <div className="kra-kpi-chat-wrap chat-theme-dark">
+              <div className="kra-kpi-chat-sessions">
+                <button type="button" className="kra-kpi-session-pill kra-kpi-session-pill--new" onClick={handleNewChat}>
+                  + New chat
                 </button>
-              ))}
-            </div>
-
-            <div className="kra-kpi-chat">
-              <div className="kra-kpi-chat-history">
-                {messages.length === 0 && (
-                  <p className="chat-empty">
-                    Describe this employee's priorities for the review period, and the assistant will draft KRA/KPI
-                    rows in the standard format below.
-                  </p>
-                )}
-                {messages.map((m, i) => (
-                  <div key={i} className={`chat-message chat-message--${m.role === "user" ? "user" : "assistant"}`}>
-                    <p>{m.text}</p>
-                  </div>
+                {chatSessions.map((s) => (
+                  <button
+                    type="button"
+                    key={s.id}
+                    className={`kra-kpi-session-pill${s.id === chatSessionId ? " kra-kpi-session-pill--active" : ""}`}
+                    onClick={() => handleSelectSession(s.id)}
+                  >
+                    {s.title ?? "New conversation"}
+                  </button>
                 ))}
-                {chatLoading && <div className="chat-message chat-message--assistant chat-message--loading">Drafting…</div>}
               </div>
-              <ChatInput
-                value={input}
-                onChange={setInput}
-                onSubmit={handleSend}
-                attachments={attachments}
-                onAttachmentsChange={setAttachments}
-                placeholder="e.g. Focus on reducing churn and mentoring the two junior engineers… (Enter to send, Shift+Enter for a new line)"
-                disabled={chatLoading}
-              />
+
+              <div className="kra-kpi-chat">
+                <div className="kra-kpi-chat-history">
+                  {messages.length === 0 && (
+                    <p className="chat-empty">
+                      Describe this employee's priorities for the review period, and the assistant will draft
+                      KRA/KPI rows in the standard format below.
+                    </p>
+                  )}
+                  {messages.map((m, i) => (
+                    <div key={i} className={`chat-message chat-message--${m.role === "user" ? "user" : "assistant"}`}>
+                      <p>{m.text}</p>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="chat-message chat-message--assistant chat-message--loading">Drafting…</div>
+                  )}
+                </div>
+                <ChatInput
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={handleSend}
+                  attachments={attachments}
+                  onAttachmentsChange={setAttachments}
+                  placeholder="e.g. Focus on reducing churn and mentoring the two junior engineers… (Enter to send, Shift+Enter for a new line)"
+                  disabled={chatLoading}
+                />
+              </div>
             </div>
 
             {draft.length > 0 && (
@@ -340,6 +315,36 @@ export default function KraKpiPage() {
                   {saveStatus === "saved" && <span className="save-success">Saved.</span>}
                 </div>
               </div>
+            )}
+
+            {savedSets.length > 0 && (
+              <section className="kra-kpi-saved-section">
+                <h3>Saved KPI Sets for {selectedEmployee.name}</h3>
+                <ul className="saved-set-list">
+                  {savedSets.map((set) => (
+                    <li key={set.id} className="saved-set-row">
+                      <span>{new Date(set.createdAt).toLocaleDateString()}</span>
+                      <button
+                        type="button"
+                        className="saved-set-download"
+                        onClick={() =>
+                          downloadScorecard(set.items, {
+                            employee: {
+                              name: set.employeeName,
+                              role: selectedEmployee.role,
+                              team: selectedEmployee.team,
+                            },
+                            managerName: set.managerName,
+                            createdAt: set.createdAt,
+                          })
+                        }
+                      >
+                        Download scorecard
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
           </>
         )}

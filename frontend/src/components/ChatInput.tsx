@@ -102,8 +102,10 @@ export default function ChatInput({
           disabled={disabled}
           rows={1}
         />
-        <button type="submit" disabled={!canSubmit()}>
-          Send
+        <button type="submit" disabled={!canSubmit()} aria-label="Send message" title="Send">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
       </div>
     </form>
