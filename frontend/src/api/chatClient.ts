@@ -9,6 +9,7 @@ export interface ChatResponse {
 export async function sendChatQuery(query: string): Promise<ChatResponse> {
   const res = await fetch("/api/chat", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
   });

@@ -50,8 +50,6 @@ function findInTree(nodes: api.ReporteeNode[], id: string | null): api.ReporteeN
 }
 
 export default function KraKpiPage() {
-  const [managers, setManagers] = useState<api.ManagerOption[]>([]);
-  const [managerId, setManagerId] = useState("");
   const [reporteeTree, setReporteeTree] = useState<api.ReporteeNode[]>([]);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [messages, setMessages] = useState<api.KpiDraftChatMessage[]>([]);
@@ -66,17 +64,8 @@ export default function KraKpiPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getManagers().then(setManagers).catch((e) => setError(e.message));
+    api.getReporteeTree().then(setReporteeTree).catch((e) => setError(e.message));
   }, []);
-
-  useEffect(() => {
-    setEmployeeId(null);
-    if (!managerId) {
-      setReporteeTree([]);
-      return;
-    }
-    api.getReporteeTree(managerId).then(setReporteeTree).catch((e) => setError(e.message));
-  }, [managerId]);
 
   useEffect(() => {
     setMessages([]);
@@ -90,7 +79,7 @@ export default function KraKpiPage() {
     }
     api.getKpiSets(employeeId).then(setSavedSets).catch((e) => setError(e.message));
     chatApi
-      .listChatSessions({ kind: "kra-kpi", managerId, employeeId })
+      .listChatSessions({ kind: "kra-kpi", employeeId })
       .then(setChatSessions)
       .catch((e) => setError(e.message));
   }, [employeeId]);
@@ -100,7 +89,7 @@ export default function KraKpiPage() {
 
   async function ensureChatSession(): Promise<number> {
     if (chatSessionId) return chatSessionId;
-    const created = await chatApi.createChatSession({ kind: "kra-kpi", managerId, employeeId });
+    const created = await chatApi.createChatSession({ kind: "kra-kpi", employeeId });
     setChatSessionId(created.id);
     setChatSessions((prev) => [created, ...prev]);
     return created.id;
@@ -138,7 +127,7 @@ export default function KraKpiPage() {
     setChatLoading(true);
     setError(null);
     try {
-      const result = await api.draftKpis({ employeeId, managerId, history: newHistory });
+      const result = await api.draftKpis({ employeeId, history: newHistory });
       const withReply: api.KpiDraftChatMessage[] = [...newHistory, { role: "model", text: result.reply }];
       setMessages(withReply);
       setDraft(result.draftKpis);
@@ -174,7 +163,7 @@ export default function KraKpiPage() {
     setSaveStatus("saving");
     setError(null);
     try {
-      const saved = await api.saveKpiSet({ employeeId, managerId, items: draft });
+      const saved = await api.saveKpiSet({ employeeId, items: draft });
       setSavedSets((prev) => [saved, ...prev]);
       setDraft([]);
       setSaveStatus("saved");
@@ -187,27 +176,14 @@ export default function KraKpiPage() {
   return (
     <div className="kra-kpi-page">
       <aside className="kra-kpi-sidebar">
-        <label className="manager-picker">
-          Acting as manager
-          <select value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-            <option value="">Select a manager…</option>
-            {managers.map((m) => (
-              <option key={m.employeeId} value={m.employeeId}>
-                {m.name} — {m.role}
-              </option>
-            ))}
-          </select>
-        </label>
-        {managerId && (
-          <div className="reportee-list">
-            <h3>Reportees</h3>
-            <ReporteeTree nodes={reporteeTree} selectedEmployeeId={employeeId} onSelect={setEmployeeId} />
-          </div>
-        )}
+        <div className="reportee-list">
+          <h3>Your Reportees</h3>
+          <ReporteeTree nodes={reporteeTree} selectedEmployeeId={employeeId} onSelect={setEmployeeId} />
+        </div>
       </aside>
 
       <section className="kra-kpi-main">
-        {!employeeId && <p className="kra-kpi-empty">Select a manager, then a reportee, to start drafting KPIs.</p>}
+        {!employeeId && <p className="kra-kpi-empty">Select a reportee to start drafting KPIs.</p>}
 
         {employeeId && selectedEmployee && (
           <>

@@ -1,10 +1,3 @@
-export interface ManagerOption {
-  employeeId: string;
-  name: string;
-  role: string;
-  team: string;
-}
-
 export interface ReporteeNode {
   employeeId: string;
   name: string;
@@ -73,34 +66,34 @@ async function asJson<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-export function getManagers(): Promise<ManagerOption[]> {
-  return fetch("/api/managers").then(asJson<ManagerOption[]>);
+/** Direct + indirect reportees of the signed-in manager — identity comes from the session, not a client-supplied id. */
+export function getReporteeTree(): Promise<ReporteeNode[]> {
+  return fetch("/api/reportees", { credentials: "include" }).then(asJson<ReporteeNode[]>);
 }
 
-export function getReporteeTree(managerId: string): Promise<ReporteeNode[]> {
-  return fetch(`/api/managers/${encodeURIComponent(managerId)}/reportees`).then(asJson<ReporteeNode[]>);
-}
-
-export function draftKpis(params: {
-  employeeId: string;
-  managerId: string;
-  history: KpiDraftChatMessage[];
-}): Promise<{ reply: string; draftKpis: KpiItem[] }> {
+export function draftKpis(params: { employeeId: string; history: KpiDraftChatMessage[] }): Promise<{
+  reply: string;
+  draftKpis: KpiItem[];
+}> {
   return fetch("/api/kpi/draft", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   }).then(asJson<{ reply: string; draftKpis: KpiItem[] }>);
 }
 
-export function saveKpiSet(params: { employeeId: string; managerId: string; items: KpiItem[] }): Promise<KpiSet> {
+export function saveKpiSet(params: { employeeId: string; items: KpiItem[] }): Promise<KpiSet> {
   return fetch("/api/kpi/sets", {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   }).then(asJson<KpiSet>);
 }
 
 export function getKpiSets(employeeId: string): Promise<KpiSet[]> {
-  return fetch(`/api/kpi/sets?employeeId=${encodeURIComponent(employeeId)}`).then(asJson<KpiSet[]>);
+  return fetch(`/api/kpi/sets?employeeId=${encodeURIComponent(employeeId)}`, { credentials: "include" }).then(
+    asJson<KpiSet[]>,
+  );
 }

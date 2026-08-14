@@ -1,8 +1,12 @@
+import type { SessionUser } from "../api/authClient.js";
+
 type View = "home" | "workforce-planning" | "kra-kpi";
 
 interface HeaderProps {
   view: View;
   onNavigate: (view: View) => void;
+  user: SessionUser;
+  onLogout: () => void;
 }
 
 const NAV_ITEMS: Array<{ view: View; label: string }> = [
@@ -26,7 +30,7 @@ function LogoMark() {
   );
 }
 
-export default function Header({ view, onNavigate }: HeaderProps) {
+export default function Header({ view, onNavigate, user, onLogout }: HeaderProps) {
   return (
     <header className="site-header">
       <button className="brand" onClick={() => onNavigate("home")} aria-label="Go to home">
@@ -47,6 +51,12 @@ export default function Header({ view, onNavigate }: HeaderProps) {
           </button>
         ))}
       </nav>
+      <div className="header-user">
+        <span className="header-user-name">{user.name}</span>
+        <button type="button" className="header-logout" onClick={onLogout}>
+          Sign out
+        </button>
+      </div>
     </header>
   );
 }

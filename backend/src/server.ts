@@ -1,21 +1,81 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
+import path from "node:path";
+import fs from "node:fs";
 import { evaluateGuardrail } from "./guardrails/router.js";
 import { runWorkforcePlanningAgent } from "./agent/agentRunner.js";
 import { logInteraction, getRecentAuditRecords } from "./audit/auditLogger.js";
 import { EMPLOYEES, initHrisData } from "./mcp/hris/data/seed.js";
-import { listManagers, getReporteeTree } from "./mcp/hris/orgChart.js";
+import { getReporteeTree, isReporteeOf } from "./mcp/hris/orgChart.js";
 import { draftKpis } from "./kpi/kpiAgentRunner.js";
 import { saveKpiSet, listKpiSetsForEmployee } from "./kpi/kpiStore.js";
 import type { KpiDraftChatMessage, KpiItem } from "./kpi/types.js";
 import { createSession, listSessions, getSession, replaceMessages } from "./chat/chatSessionStore.js";
 import type { ChatSessionKind, ChatSessionMessage } from "./chat/types.js";
+import { getGoogleAuthUrl, exchangeCodeForProfile } from "./auth/googleAuth.js";
+import { attachUser, requireAuth, issueSessionCookie, clearSessionCookie } from "./auth/session.js";
 
 const app = express();
-app.use(cors());
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
+
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
+app.use(attachUser);
 
 const PORT = Number(process.env.PORT ?? 8787);
+
+// --- Auth ---
+
+app.get("/auth/google/start", (_req, res) => {
+  res.redirect(getGoogleAuthUrl());
+});
+
+app.get("/auth/google/callback", async (req, res) => {
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  if (!code) {
+    res.redirect(`${FRONTEND_URL}/?authError=missing_code`);
+    return;
+  }
+  try {
+    const profile = await exchangeCodeForProfile(code);
+    const employee = EMPLOYEES.find((e) => e.email === profile.email);
+    if (!employee) {
+      res.redirect(`${FRONTEND_URL}/?authError=not_linked`);
+      return;
+    }
+    issueSessionCookie(res, {
+      email: profile.email,
+      name: employee.name,
+      employeeId: employee.employeeId,
+      role: employee.role,
+    });
+    res.redirect(FRONTEND_URL);
+  } catch (err) {
+    console.error("Google OAuth callback failed:", err);
+    res.redirect(`${FRONTEND_URL}/?authError=oauth_failed`);
+  }
+});
+
+app.post("/auth/logout", (_req, res) => {
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get("/auth/me", (req, res) => {
+  res.json({ user: req.user ?? null });
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
+// Everything below this line requires a signed-in session — the manager's
+// identity comes from req.user (set by attachUser from the session cookie),
+// never from a client-supplied id, so a logged-in manager can only ever act
+// as themselves.
+app.use("/api", requireAuth);
 
 app.post("/api/chat", async (req, res) => {
   const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
@@ -61,30 +121,20 @@ app.post("/api/chat", async (req, res) => {
 });
 
 // --- KRA/KPI section ---
-// Manager identity is a picker, not real auth — see mcp/hris/orgChart.ts
-// and the README for why that's the deliberate Phase 0 stand-in.
 
-app.get("/api/managers", (_req, res) => {
-  res.json(listManagers());
-});
-
-app.get("/api/managers/:id/reportees", (req, res) => {
-  const manager = EMPLOYEES.find((e) => e.employeeId === req.params.id);
-  if (!manager) {
-    res.status(404).json({ error: `No employee with id ${req.params.id}.` });
-    return;
-  }
-  res.json(getReporteeTree(req.params.id));
+app.get("/api/reportees", (req, res) => {
+  res.json(getReporteeTree(req.user!.employeeId));
 });
 
 app.post("/api/kpi/draft", async (req, res) => {
-  const { employeeId, managerId, history } = req.body ?? {};
-  if (typeof employeeId !== "string" || typeof managerId !== "string" || !Array.isArray(history)) {
-    res.status(400).json({ error: "Request body must include employeeId, managerId, and a history array." });
+  const { employeeId, history } = req.body ?? {};
+  const managerId = req.user!.employeeId;
+  if (typeof employeeId !== "string" || !Array.isArray(history)) {
+    res.status(400).json({ error: "Request body must include employeeId and a history array." });
     return;
   }
-  if (!EMPLOYEES.some((e) => e.employeeId === employeeId)) {
-    res.status(404).json({ error: `No employee with id ${employeeId}.` });
+  if (!isReporteeOf(managerId, employeeId)) {
+    res.status(403).json({ error: "That employee is not one of your reportees." });
     return;
   }
 
@@ -98,23 +148,23 @@ app.post("/api/kpi/draft", async (req, res) => {
 });
 
 app.post("/api/kpi/sets", (req, res) => {
-  const { employeeId, managerId, items } = req.body ?? {};
-  if (typeof employeeId !== "string" || typeof managerId !== "string" || !Array.isArray(items) || items.length === 0) {
-    res.status(400).json({ error: "Request body must include employeeId, managerId, and a non-empty items array." });
+  const { employeeId, items } = req.body ?? {};
+  const managerId = req.user!.employeeId;
+  if (typeof employeeId !== "string" || !Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: "Request body must include employeeId and a non-empty items array." });
     return;
   }
-  const employee = EMPLOYEES.find((e) => e.employeeId === employeeId);
-  const manager = EMPLOYEES.find((e) => e.employeeId === managerId);
-  if (!employee || !manager) {
-    res.status(404).json({ error: "Unknown employeeId or managerId." });
+  if (!isReporteeOf(managerId, employeeId)) {
+    res.status(403).json({ error: "That employee is not one of your reportees." });
     return;
   }
+  const employee = EMPLOYEES.find((e) => e.employeeId === employeeId)!;
 
   const saved = saveKpiSet({
     employeeId,
     employeeName: employee.name,
     managerId,
-    managerName: manager.name,
+    managerName: req.user!.name,
     items: items as KpiItem[],
   });
   res.json(saved);
@@ -126,12 +176,16 @@ app.get("/api/kpi/sets", (req, res) => {
     res.status(400).json({ error: "Query param employeeId is required." });
     return;
   }
+  if (!isReporteeOf(req.user!.employeeId, employeeId)) {
+    res.status(403).json({ error: "That employee is not one of your reportees." });
+    return;
+  }
   res.json(listKpiSetsForEmployee(employeeId));
 });
 
 // --- Chat session persistence (sidebar history) ---
-// Sessions are keyed by managerId (and employeeId for kra-kpi chats) — the
-// same pseudo-identity used everywhere else pre-auth, not a real user account.
+// Sessions are keyed by the signed-in manager's own employeeId (and,
+// for kra-kpi chats, which reportee) — never a client-supplied managerId.
 
 const CHAT_KINDS: ChatSessionKind[] = ["workforce-planning", "kra-kpi"];
 
@@ -141,30 +195,32 @@ function parseKind(value: unknown): ChatSessionKind | null {
 
 app.post("/api/chat/sessions", (req, res) => {
   const kind = parseKind(req.body?.kind);
-  const managerId = typeof req.body?.managerId === "string" ? req.body.managerId : "";
   const employeeId = typeof req.body?.employeeId === "string" ? req.body.employeeId : null;
-  if (!kind || !managerId) {
-    res.status(400).json({ error: "Request body must include a valid kind and managerId." });
+  if (!kind) {
+    res.status(400).json({ error: "Request body must include a valid kind." });
     return;
   }
-  res.json(createSession({ kind, managerId, employeeId }));
+  if (employeeId && !isReporteeOf(req.user!.employeeId, employeeId)) {
+    res.status(403).json({ error: "That employee is not one of your reportees." });
+    return;
+  }
+  res.json(createSession({ kind, managerId: req.user!.employeeId, employeeId }));
 });
 
 app.get("/api/chat/sessions", (req, res) => {
   const kind = parseKind(req.query.kind);
-  const managerId = typeof req.query.managerId === "string" ? req.query.managerId : "";
   const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : null;
-  if (!kind || !managerId) {
-    res.status(400).json({ error: "Query params kind and managerId are required." });
+  if (!kind) {
+    res.status(400).json({ error: "Query param kind is required." });
     return;
   }
-  res.json(listSessions({ kind, managerId, employeeId }));
+  res.json(listSessions({ kind, managerId: req.user!.employeeId, employeeId }));
 });
 
 app.get("/api/chat/sessions/:id", (req, res) => {
   const id = Number(req.params.id);
   const session = Number.isInteger(id) ? getSession(id) : null;
-  if (!session) {
+  if (!session || session.managerId !== req.user!.employeeId) {
     res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
     return;
   }
@@ -178,24 +234,31 @@ app.put("/api/chat/sessions/:id/messages", (req, res) => {
     res.status(400).json({ error: "Request body must include a messages array." });
     return;
   }
-  const session = replaceMessages(id, messages as ChatSessionMessage[]);
-  if (!session) {
+  const existing = getSession(id);
+  if (!existing || existing.managerId !== req.user!.employeeId) {
     res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
     return;
   }
+  const session = replaceMessages(id, messages as ChatSessionMessage[]);
   res.json(session);
 });
 
-// Read-only visibility into the audit log — handy for demoing the guardrail
-// during Phase 0. No auth on this route yet (Phase 0 explicitly has none);
-// don't expose this port publicly.
+// Read-only visibility into the audit log — handy for demoing the guardrail.
 app.get("/api/audit", (_req, res) => {
   res.json(getRecentAuditRecords(50));
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+// In production, this same server also serves the built frontend, so the
+// whole app is one origin — no cross-site cookie configuration needed for
+// the session cookie. In local dev, frontend/dist doesn't exist (Vite's own
+// dev server serves the frontend on :5173 instead), so this is a no-op.
+const frontendDist = path.resolve(process.cwd(), "../frontend/dist");
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get(/^(?!\/api|\/auth).*/, (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 // Block startup on the first HRIS fetch so no request races an empty
 // EMPLOYEES array; a failed fetch is logged loudly but doesn't crash the

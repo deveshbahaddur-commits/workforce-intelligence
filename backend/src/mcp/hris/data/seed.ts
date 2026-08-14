@@ -11,6 +11,11 @@ import Papa from "papaparse";
  * also no compensation column in the source sheet, so `annualCostUsd` and
  * the get_cost_summary tool were removed rather than left fabricating
  * numbers against real employees — see mcp/hris/tools.ts.
+ *
+ * `email` (from "Official Mail ID") IS loaded — unlike the excluded PII
+ * columns above, it's the join key auth/googleAuth.ts uses to turn a
+ * verified Google sign-in into "which employee is this," so it has to be
+ * in memory. It's a work email, not personal data.
  */
 export interface Employee {
   employeeId: string;
@@ -21,6 +26,7 @@ export interface Employee {
   tenureMonths: number;
   status: "active";
   location: string;
+  email: string;
 }
 
 const SHEET_ID = process.env.HRIS_SHEET_ID;
@@ -61,6 +67,7 @@ function parseSheet(csv: string): Employee[] {
       tenureMonths: tenureMonthsSinceDoj(row["DOJ"] ?? ""),
       status: "active",
       location: (row["Record Location"] ?? "").trim() || "Unknown",
+      email: (row["Official Mail ID"] ?? "").trim().toLowerCase(),
     }))
     .filter((e) => e.employeeId && e.name);
 }

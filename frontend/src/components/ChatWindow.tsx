@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { sendChatQuery } from "../api/chatClient.js";
-import { getManagers, type ManagerOption } from "../api/kraKpiClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
 import ChatInput from "./ChatInput.js";
 import ChatSidebar from "./ChatSidebar.js";
@@ -28,8 +27,6 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ onBackHome }: ChatWindowProps) {
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
-  const [managerId, setManagerId] = useState("");
   const [sessions, setSessions] = useState<chatApi.ChatSessionSummary[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -39,25 +36,15 @@ export default function ChatWindow({ onBackHome }: ChatWindowProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getManagers().then(setManagers).catch((e) => setError(e.message));
-  }, []);
-
-  useEffect(() => {
-    setSessionId(null);
-    setMessages([]);
-    if (!managerId) {
-      setSessions([]);
-      return;
-    }
     chatApi
-      .listChatSessions({ kind: "workforce-planning", managerId })
+      .listChatSessions({ kind: "workforce-planning" })
       .then(setSessions)
       .catch((e) => setError(e.message));
-  }, [managerId]);
+  }, []);
 
   async function ensureSession(): Promise<number> {
     if (sessionId) return sessionId;
-    const created = await chatApi.createChatSession({ kind: "workforce-planning", managerId });
+    const created = await chatApi.createChatSession({ kind: "workforce-planning" });
     setSessionId(created.id);
     setSessions((prev) => [{ ...created }, ...prev]);
     return created.id;
@@ -82,7 +69,6 @@ export default function ChatWindow({ onBackHome }: ChatWindowProps) {
   }
 
   async function persist(nextMessages: ChatMessage[]) {
-    if (!managerId) return;
     try {
       const id = await ensureSession();
       const saved = await chatApi.saveChatSessionMessages(
@@ -123,7 +109,7 @@ export default function ChatWindow({ onBackHome }: ChatWindowProps) {
         },
       ];
       setMessages(withReply);
-      if (managerId) await persist(withReply);
+      await persist(withReply);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -134,24 +120,12 @@ export default function ChatWindow({ onBackHome }: ChatWindowProps) {
   return (
     <div className="chat-shell chat-theme-dark">
       <div className="chat-sidebar-wrap">
-        <label className="manager-picker chat-sidebar-manager">
-          Acting as manager
-          <select value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-            <option value="">Select a manager…</option>
-            {managers.map((m) => (
-              <option key={m.employeeId} value={m.employeeId}>
-                {m.name} — {m.role}
-              </option>
-            ))}
-          </select>
-        </label>
         <ChatSidebar
           sessions={sessions}
           activeSessionId={sessionId}
           onSelect={handleSelectSession}
           onNewChat={handleNewChat}
           onBackHome={onBackHome}
-          disabled={!managerId}
         />
       </div>
 

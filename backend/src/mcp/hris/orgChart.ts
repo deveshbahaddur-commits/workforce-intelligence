@@ -57,3 +57,8 @@ export function getReporteeTree(managerId: string): ReporteeNode[] {
 export function flattenReporteeTree(nodes: ReporteeNode[]): ReporteeNode[] {
   return nodes.flatMap((n) => [n, ...flattenReporteeTree(n.reports)]);
 }
+
+/** Whether `employeeId` is anywhere in `managerId`'s direct/indirect reportee tree. */
+export function isReporteeOf(managerId: string, employeeId: string): boolean {
+  return flattenReporteeTree(getReporteeTree(managerId)).some((n) => n.employeeId === employeeId);
+}
