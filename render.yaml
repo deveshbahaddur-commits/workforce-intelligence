@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: workforce-intelligence
+    runtime: node
+    rootDir: backend
+    plan: starter
+    buildCommand: npm ci && npm run build && cd ../frontend && npm ci && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /api/health
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SESSION_JWT_SECRET
+        sync: false
+      - key: HRIS_SHEET_ID
+        sync: false
+      - key: HRIS_SHEET_GID
+        value: "0"
+      - key: HRIS_SHEET_CACHE_TTL_MS
+        value: "300000"
+      - key: FRONTEND_URL
+        value: https://workforce-intelligence.onrender.com
+      - key: AUDIT_DB_PATH
+        value: /var/data/audit.sqlite
+      - key: KPI_DB_PATH
+        value: /var/data/kpi.sqlite
+      - key: CHAT_DB_PATH
+        value: /var/data/chat.sqlite
+      - key: AUTH_DB_PATH
+        value: /var/data/auth.sqlite
