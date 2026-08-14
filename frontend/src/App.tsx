@@ -9,24 +9,15 @@ import "./index.css";
 
 type View = "home" | "workforce-planning" | "kra-kpi";
 
-function authErrorFromUrl(): string | null {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("authError");
-}
-
 export default function App() {
   const [view, setView] = useState<View>("home");
   const [user, setUser] = useState<SessionUser | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [authError] = useState<string | null>(authErrorFromUrl);
 
   useEffect(() => {
     getMe()
       .then(setUser)
       .finally(() => setCheckingAuth(false));
-    if (authErrorFromUrl()) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
   }, []);
 
   async function handleLogout() {
@@ -40,7 +31,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginPage authError={authError} />;
+    return <LoginPage onLoginSuccess={setUser} />;
   }
 
   return (

@@ -12,10 +12,20 @@ export async function getMe(): Promise<SessionUser | null> {
   return data.user ?? null;
 }
 
-export async function logout(): Promise<void> {
-  await fetch("/auth/logout", { method: "POST", credentials: "include" });
+export async function login(email: string, password: string): Promise<SessionUser> {
+  const res = await fetch("/auth/login", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error ?? "Sign-in failed.");
+  }
+  return data.user as SessionUser;
 }
 
-export function signInUrl(): string {
-  return "/auth/google/start";
+export async function logout(): Promise<void> {
+  await fetch("/auth/logout", { method: "POST", credentials: "include" });
 }

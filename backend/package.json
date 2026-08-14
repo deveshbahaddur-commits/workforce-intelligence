@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node --env-file=.env dist/server.js"
+    "start": "node --env-file=.env dist/server.js",
+    "set-password": "tsx --env-file=.env src/scripts/setPassword.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
@@ -14,7 +15,6 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.21.0",
-    "google-auth-library": "^9.15.0",
     "jsonwebtoken": "^9.0.2",
     "papaparse": "^5.5.4",
     "zod": "^4.4.3"

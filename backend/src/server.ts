@@ -13,8 +13,9 @@ import { saveKpiSet, listKpiSetsForEmployee } from "./kpi/kpiStore.js";
 import type { KpiDraftChatMessage, KpiItem } from "./kpi/types.js";
 import { createSession, listSessions, getSession, replaceMessages } from "./chat/chatSessionStore.js";
 import type { ChatSessionKind, ChatSessionMessage } from "./chat/types.js";
-import { getGoogleAuthUrl, exchangeCodeForProfile } from "./auth/googleAuth.js";
 import { attachUser, requireAuth, issueSessionCookie, clearSessionCookie } from "./auth/session.js";
+import { getPasswordHash } from "./auth/credentialStore.js";
+import { verifyPassword } from "./auth/passwordHash.js";
 
 const app = express();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
@@ -27,35 +28,43 @@ app.use(attachUser);
 const PORT = Number(process.env.PORT ?? 8787);
 
 // --- Auth ---
+// Email + admin-provisioned password, checked against the HRIS sheet's
+// "Official Mail ID" for identity and a separate credential store for the
+// password hash. No self-service signup or reset — see
+// src/scripts/setPassword.ts, run directly by whoever administers this.
 
-app.get("/auth/google/start", (_req, res) => {
-  res.redirect(getGoogleAuthUrl());
-});
-
-app.get("/auth/google/callback", async (req, res) => {
-  const code = typeof req.query.code === "string" ? req.query.code : "";
-  if (!code) {
-    res.redirect(`${FRONTEND_URL}/?authError=missing_code`);
+app.post("/auth/login", (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password are required." });
     return;
   }
-  try {
-    const profile = await exchangeCodeForProfile(code);
-    const employee = EMPLOYEES.find((e) => e.email === profile.email);
-    if (!employee) {
-      res.redirect(`${FRONTEND_URL}/?authError=not_linked`);
-      return;
-    }
-    issueSessionCookie(res, {
-      email: profile.email,
-      name: employee.name,
-      employeeId: employee.employeeId,
-      role: employee.role,
-    });
-    res.redirect(FRONTEND_URL);
-  } catch (err) {
-    console.error("Google OAuth callback failed:", err);
-    res.redirect(`${FRONTEND_URL}/?authError=oauth_failed`);
+
+  // Same generic error whether the email doesn't match an employee, no
+  // password has been set yet, or the password is simply wrong — don't
+  // reveal which of those it was.
+  const invalid = () => res.status(401).json({ error: "Incorrect email or password." });
+
+  const employee = EMPLOYEES.find((e) => e.email === email);
+  if (!employee) {
+    invalid();
+    return;
   }
+  const hash = getPasswordHash(employee.employeeId);
+  if (!hash || !verifyPassword(password, hash)) {
+    invalid();
+    return;
+  }
+
+  const sessionUser = {
+    email: employee.email,
+    name: employee.name,
+    employeeId: employee.employeeId,
+    role: employee.role,
+  };
+  issueSessionCookie(res, sessionUser);
+  res.json({ user: sessionUser });
 });
 
 app.post("/auth/logout", (_req, res) => {
