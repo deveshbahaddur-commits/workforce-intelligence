@@ -5,8 +5,12 @@
 // no native dependency at all: pure HTTP to Turso, same Client API.
 import { createClient, type Client } from "@libsql/client/http";
 
-const url = process.env.TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN || undefined;
+// .trim() deliberately — a stray trailing newline from a copy-paste into a
+// dashboard env var field (e.g. Render's) turns an otherwise-valid URL into
+// an invalid one (encoded as a literal %0A), which is exactly what happened
+// on first deploy here. Cheap enough to always do.
+const url = process.env.TURSO_DATABASE_URL?.trim();
+const authToken = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
 
 if (!url) {
   throw new Error(
