@@ -1,9 +1,29 @@
 import { useEffect, useState } from "react";
+import {
+  Box,
+  Button,
+  Chip,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import DownloadIcon from "@mui/icons-material/Download";
 import * as api from "../api/kraKpiClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
 import ReporteeTree from "./ReporteeTree.js";
 import ChatInput from "./ChatInput.js";
 import KraTableRow from "./KraTableRow.js";
+import PageContainer from "../shared/components/PageContainer.js";
+import PageHeader from "../shared/components/PageHeader.js";
+import AppCard from "../shared/components/AppCard.js";
+import AppChip from "../shared/components/AppChip.js";
+import { colors } from "../theme/colors.styles.js";
 import { downloadScorecard } from "../utils/scorecardExport.js";
 
 const BLANK_ITEM: api.KpiItem = {
@@ -174,145 +194,212 @@ export default function KraKpiPage() {
   }
 
   return (
-    <div className="kra-kpi-page">
-      <aside className="kra-kpi-sidebar">
-        <div className="reportee-list">
-          <h3>Your Reportees</h3>
-          <ReporteeTree nodes={reporteeTree} selectedEmployeeId={employeeId} onSelect={setEmployeeId} />
-        </div>
-      </aside>
+    <PageContainer sx={{ pt: 0 }}>
+      <PageHeader title="Set KRA/KPIs" caption="Draft KRA/KPIs for your reportees, in the standard org-wide format" />
 
-      <section className="kra-kpi-main">
-        {!employeeId && <p className="kra-kpi-empty">Select a reportee to start drafting KPIs.</p>}
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={3}>
+          <AppCard>
+            <Typography variant="overline" sx={{ color: colors.text.caption, display: "block", mb: 1.5 }}>
+              Your Reportees
+            </Typography>
+            <ReporteeTree nodes={reporteeTree} selectedEmployeeId={employeeId} onSelect={setEmployeeId} />
+          </AppCard>
+        </Grid>
 
-        {employeeId && selectedEmployee && (
-          <>
-            <h2>
-              KRA/KPIs for {selectedEmployee.name} <span className="kra-kpi-role">({selectedEmployee.role})</span>
-            </h2>
+        <Grid item xs={12} md={9}>
+          {!employeeId && (
+            <Typography variant="caption2" sx={{ color: colors.text.muted }}>
+              Select a reportee to start drafting KPIs.
+            </Typography>
+          )}
 
-            <div className="kra-kpi-chat-wrap chat-theme-dark">
-              <div className="kra-kpi-chat-sessions">
-                <button type="button" className="kra-kpi-session-pill kra-kpi-session-pill--new" onClick={handleNewChat}>
-                  + New chat
-                </button>
-                {chatSessions.map((s) => (
-                  <button
-                    type="button"
-                    key={s.id}
-                    className={`kra-kpi-session-pill${s.id === chatSessionId ? " kra-kpi-session-pill--active" : ""}`}
-                    onClick={() => handleSelectSession(s.id)}
-                  >
-                    {s.title ?? "New conversation"}
-                  </button>
-                ))}
-              </div>
+          {employeeId && selectedEmployee && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Typography variant="subtitle2">
+                KRA/KPIs for {selectedEmployee.name}{" "}
+                <Typography component="span" variant="caption2" sx={{ color: colors.text.muted }}>
+                  ({selectedEmployee.role})
+                </Typography>
+              </Typography>
 
-              <div className="kra-kpi-chat">
-                <div className="kra-kpi-chat-history">
-                  {messages.length === 0 && (
-                    <p className="chat-empty">
-                      Describe this employee's priorities for the review period, and the assistant will draft
-                      KRA/KPI rows in the standard format below.
-                    </p>
-                  )}
-                  {messages.map((m, i) => (
-                    <div key={i} className={`chat-message chat-message--${m.role === "user" ? "user" : "assistant"}`}>
-                      <p>{m.text}</p>
-                    </div>
+              <AppCard sx={{ background: colors.gray[100] }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
+                  <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={handleNewChat}>
+                    New chat
+                  </Button>
+                  {chatSessions.map((s) => (
+                    <Chip
+                      key={s.id}
+                      label={s.title ?? "New conversation"}
+                      onClick={() => handleSelectSession(s.id)}
+                      variant={s.id === chatSessionId ? "filled" : "outlined"}
+                      sx={
+                        s.id === chatSessionId
+                          ? { backgroundColor: colors.primary.main, color: "#fff" }
+                          : { borderColor: colors.gray[300] }
+                      }
+                    />
                   ))}
-                  {chatLoading && (
-                    <div className="chat-message chat-message--assistant chat-message--loading">Drafting…</div>
-                  )}
-                </div>
-                <ChatInput
-                  value={input}
-                  onChange={setInput}
-                  onSubmit={handleSend}
-                  attachments={attachments}
-                  onAttachmentsChange={setAttachments}
-                  placeholder="e.g. Focus on reducing churn and mentoring the two junior engineers… (Enter to send, Shift+Enter for a new line)"
-                  disabled={chatLoading}
-                />
-              </div>
-            </div>
+                </Box>
 
-            {draft.length > 0 && (
-              <div className="kra-cards-wrap">
-                <div className="kpi-table-header-row">
-                  <h3>Draft KRAs</h3>
-                  <span className={`weightage-total${weightageSum === 100 ? " weightage-total--ok" : " weightage-total--warn"}`}>
-                    Weightage total: {weightageSum}% {weightageSum !== 100 && "(should be 100%)"}
-                  </span>
-                </div>
-                <p className="kra-details-hint">
-                  Click "Details" on a row to set H1/H2 goals, tracked metrics, and an optional checklist for that
-                  KRA — these carry through to the downloaded scorecard.
-                </p>
-                <div className="kpi-table-scroll">
-                  <table className="kpi-table">
-                    <thead>
-                      <tr>
-                        {TABLE_HEADERS.map((label) => (
-                          <th key={label}>{label}</th>
-                        ))}
-                        <th></th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {draft.map((item, i) => (
-                        <KraTableRow key={i} item={item} index={i} onChange={updateItem} onRemove={removeRow} />
+                <Box
+                  sx={{
+                    background: "#fff",
+                    borderRadius: "0.75rem",
+                    border: `1px solid ${colors.gray[200]}`,
+                    display: "flex",
+                    flexDirection: "column",
+                    height: 420,
+                  }}
+                >
+                  <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", p: 2.5 }}>
+                    {messages.length === 0 && (
+                      <Typography variant="caption2" sx={{ color: colors.text.muted }}>
+                        Describe this employee's priorities for the review period, and the assistant will draft
+                        KRA/KPI rows in the standard format below.
+                      </Typography>
+                    )}
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                      {messages.map((m, i) => (
+                        <Box
+                          key={i}
+                          sx={{
+                            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                            maxWidth: "85%",
+                            px: 2,
+                            py: 1,
+                            borderRadius: "0.75rem",
+                            backgroundColor: m.role === "user" ? colors.chip.primary.bg : colors.gray[50],
+                          }}
+                        >
+                          <Typography variant="caption2" sx={{ whiteSpace: "pre-wrap" }}>
+                            {m.text}
+                          </Typography>
+                        </Box>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="kpi-table-actions">
-                  <button type="button" onClick={addRow}>
-                    + Add row
-                  </button>
-                  <button type="button" className="save-button" onClick={handleSave} disabled={saveStatus === "saving"}>
-                    {saveStatus === "saving" ? "Saving…" : "Save KPI set"}
-                  </button>
-                  {saveStatus === "saved" && <span className="save-success">Saved.</span>}
-                </div>
-              </div>
-            )}
+                      {chatLoading && (
+                        <Typography variant="caption2" sx={{ color: colors.text.muted, fontStyle: "italic" }}>
+                          Drafting…
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                  <Box sx={{ borderTop: `1px solid ${colors.gray[200]}`, p: 1.5 }}>
+                    <ChatInput
+                      value={input}
+                      onChange={setInput}
+                      onSubmit={handleSend}
+                      attachments={attachments}
+                      onAttachmentsChange={setAttachments}
+                      placeholder="e.g. Focus on reducing churn and mentoring the two junior engineers… (Enter to send, Shift+Enter for a new line)"
+                      disabled={chatLoading}
+                    />
+                  </Box>
+                </Box>
+              </AppCard>
 
-            {savedSets.length > 0 && (
-              <section className="kra-kpi-saved-section">
-                <h3>Saved KPI Sets for {selectedEmployee.name}</h3>
-                <ul className="saved-set-list">
-                  {savedSets.map((set) => (
-                    <li key={set.id} className="saved-set-row">
-                      <span>{new Date(set.createdAt).toLocaleDateString()}</span>
-                      <button
-                        type="button"
-                        className="saved-set-download"
-                        onClick={() =>
-                          downloadScorecard(set.items, {
-                            employee: {
-                              name: set.employeeName,
-                              role: selectedEmployee.role,
-                              team: selectedEmployee.team,
-                            },
-                            managerName: set.managerName,
-                            createdAt: set.createdAt,
-                          })
-                        }
+              {draft.length > 0 && (
+                <AppCard>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", mb: 1 }}>
+                    <Typography variant="subtitle3">Draft KRAs</Typography>
+                    <AppChip
+                      label={`Weightage total: ${weightageSum}%${weightageSum !== 100 ? " (should be 100%)" : ""}`}
+                      variant={weightageSum === 100 ? "success" : "warning"}
+                    />
+                  </Box>
+                  <Typography variant="caption2" sx={{ color: colors.text.muted, display: "block", mb: 2 }}>
+                    Click the chevron on a row to set H1/H2 goals, tracked metrics, and an optional checklist for
+                    that KRA — these carry through to the downloaded scorecard.
+                  </Typography>
+                  <TableContainer sx={{ border: `1px solid ${colors.gray[200]}`, borderRadius: "0.75rem" }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          {TABLE_HEADERS.map((label) => (
+                            <TableCell key={label}>{label}</TableCell>
+                          ))}
+                          <TableCell />
+                          <TableCell />
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {draft.map((item, i) => (
+                          <KraTableRow key={i} item={item} index={i} onChange={updateItem} onRemove={removeRow} />
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 2 }}>
+                    <Button variant="outlined" startIcon={<AddIcon />} onClick={addRow}>
+                      Add row
+                    </Button>
+                    <Button variant="contained" onClick={handleSave} disabled={saveStatus === "saving"}>
+                      {saveStatus === "saving" ? "Saving…" : "Save KPI set"}
+                    </Button>
+                    {saveStatus === "saved" && (
+                      <Typography variant="caption2" sx={{ color: colors.status.success.main, fontWeight: 600 }}>
+                        Saved.
+                      </Typography>
+                    )}
+                  </Box>
+                </AppCard>
+              )}
+
+              {savedSets.length > 0 && (
+                <AppCard>
+                  <Typography variant="subtitle3" sx={{ mb: 1.5, display: "block" }}>
+                    Saved KPI Sets for {selectedEmployee.name}
+                  </Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {savedSets.map((set) => (
+                      <Box
+                        key={set.id}
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          border: `1px solid ${colors.gray[200]}`,
+                          borderRadius: 2,
+                          px: 2,
+                          py: 1,
+                        }}
                       >
-                        Download scorecard
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-          </>
-        )}
+                        <Typography variant="caption2" sx={{ color: colors.text.secondary }}>
+                          {new Date(set.createdAt).toLocaleDateString()}
+                        </Typography>
+                        <Button
+                          size="small"
+                          startIcon={<DownloadIcon fontSize="small" />}
+                          onClick={() =>
+                            downloadScorecard(set.items, {
+                              employee: {
+                                name: set.employeeName,
+                                role: selectedEmployee.role,
+                                team: selectedEmployee.team,
+                              },
+                              managerName: set.managerName,
+                              createdAt: set.createdAt,
+                            })
+                          }
+                        >
+                          Download scorecard
+                        </Button>
+                      </Box>
+                    ))}
+                  </Box>
+                </AppCard>
+              )}
+            </Box>
+          )}
 
-        {error && <div className="chat-error">{error}</div>}
-      </section>
-    </div>
+          {error && (
+            <Typography variant="caption2" sx={{ color: colors.status.error.main, display: "block", mt: 2 }}>
+              {error}
+            </Typography>
+          )}
+        </Grid>
+      </Grid>
+    </PageContainer>
   );
 }

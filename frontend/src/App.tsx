@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import Header from "./components/Header.js";
+import { ThemeProvider, CssBaseline, Box } from "@mui/material";
+import { theme } from "./theme/theme.js";
+import Sidebar, { type View } from "./shared/components/Sidebar.js";
 import HomePage from "./components/HomePage.js";
 import ChatWindow from "./components/ChatWindow.js";
 import KraKpiPage from "./components/KraKpiPage.js";
 import LoginPage from "./components/LoginPage.js";
 import { getMe, logout, type SessionUser } from "./api/authClient.js";
-import "./index.css";
-
-type View = "home" | "workforce-planning" | "kra-kpi";
 
 export default function App() {
   const [view, setView] = useState<View>("home");
@@ -26,22 +25,23 @@ export default function App() {
     setView("home");
   }
 
-  if (checkingAuth) {
-    return <div className="app" />;
-  }
-
-  if (!user) {
-    return <LoginPage onLoginSuccess={setUser} />;
-  }
-
   return (
-    <div className="app">
-      <Header view={view} onNavigate={setView} user={user} onLogout={handleLogout} />
-      <main className={`app-main${view === "workforce-planning" ? " app-main--full" : ""}`}>
-        {view === "home" && <HomePage onNavigate={setView} />}
-        {view === "workforce-planning" && <ChatWindow onBackHome={() => setView("home")} />}
-        {view === "kra-kpi" && <KraKpiPage />}
-      </main>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      {checkingAuth ? (
+        <Box />
+      ) : !user ? (
+        <LoginPage onLoginSuccess={setUser} />
+      ) : (
+        <Box sx={{ display: "flex", height: "100vh" }}>
+          <Sidebar view={view} onNavigate={setView} user={user} onLogout={handleLogout} />
+          <Box sx={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden" }}>
+            {view === "home" && <HomePage onNavigate={setView} />}
+            {view === "workforce-planning" && <ChatWindow />}
+            {view === "kra-kpi" && <KraKpiPage />}
+          </Box>
+        </Box>
+      )}
+    </ThemeProvider>
   );
 }

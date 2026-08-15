@@ -1,11 +1,13 @@
+import { Box, Button, List, ListItemButton, Typography } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import type { ChatSessionSummary } from "../api/chatSessionClient.js";
+import { colors } from "../theme/colors.styles.js";
 
 interface ChatSidebarProps {
   sessions: ChatSessionSummary[];
   activeSessionId: number | null;
   onSelect: (id: number) => void;
   onNewChat: () => void;
-  onBackHome: () => void;
   disabled?: boolean;
 }
 
@@ -21,38 +23,51 @@ function relativeDate(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function ChatSidebar({
-  sessions,
-  activeSessionId,
-  onSelect,
-  onNewChat,
-  onBackHome,
-  disabled,
-}: ChatSidebarProps) {
+export default function ChatSidebar({ sessions, activeSessionId, onSelect, onNewChat, disabled }: ChatSidebarProps) {
   return (
-    <aside className="chat-sidebar">
-      <button type="button" className="chat-sidebar-new" onClick={onNewChat} disabled={disabled}>
-        + New chat
-      </button>
-      <div className="chat-sidebar-list">
-        {sessions.length === 0 && <p className="chat-sidebar-empty">No past chats yet.</p>}
+    <Box sx={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", height: "100%", p: 2 }}>
+      <Button
+        variant="outlined"
+        startIcon={<AddIcon />}
+        onClick={onNewChat}
+        disabled={disabled}
+        fullWidth
+        sx={{ mb: 2, justifyContent: "flex-start" }}
+      >
+        New chat
+      </Button>
+      <List sx={{ flex: 1, minHeight: 0, overflowY: "auto", p: 0 }}>
+        {sessions.length === 0 && (
+          <Typography variant="caption2" sx={{ color: colors.text.placeholder }}>
+            No past chats yet.
+          </Typography>
+        )}
         {sessions.map((s) => (
-          <button
-            type="button"
+          <ListItemButton
             key={s.id}
-            className={`chat-sidebar-item${s.id === activeSessionId ? " chat-sidebar-item--active" : ""}`}
+            selected={s.id === activeSessionId}
             onClick={() => onSelect(s.id)}
+            sx={{
+              borderRadius: 2,
+              mb: 0.5,
+              flexDirection: "column",
+              alignItems: "flex-start",
+              "&.Mui-selected": { backgroundColor: colors.chip.primary.bg },
+              "&.Mui-selected:hover": { backgroundColor: colors.chip.primary.bg },
+            }}
           >
-            <span className="chat-sidebar-item-title">{s.title ?? "New conversation"}</span>
-            <span className="chat-sidebar-item-date">{relativeDate(s.updatedAt)}</span>
-          </button>
+            <Typography
+              variant="caption3"
+              sx={{ color: colors.text.primary, width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              {s.title ?? "New conversation"}
+            </Typography>
+            <Typography variant="caption" sx={{ color: colors.text.muted }}>
+              {relativeDate(s.updatedAt)}
+            </Typography>
+          </ListItemButton>
         ))}
-      </div>
-      <div className="chat-sidebar-footer">
-        <button type="button" className="chat-sidebar-option" onClick={onBackHome}>
-          ← Home
-        </button>
-      </div>
-    </aside>
+      </List>
+    </Box>
   );
 }

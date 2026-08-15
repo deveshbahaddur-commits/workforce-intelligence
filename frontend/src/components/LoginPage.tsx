@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
+import { Alert, Box, Button, Paper, TextField, Typography } from "@mui/material";
 import { login, type SessionUser } from "../api/authClient.js";
+import { colors } from "../theme/colors.styles.js";
 
 interface LoginPageProps {
   onLoginSuccess: (user: SessionUser) => void;
@@ -27,37 +29,70 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   }
 
   return (
-    <div className="login-page">
-      <form className="login-card" onSubmit={handleSubmit}>
-        <p className="hero-eyebrow">For every manager at Recykal</p>
-        <h1 className="login-title">Sign in to continue</h1>
-        <p className="login-subtitle">Use your work email and the password you were given to access workforce planning and KRA/KPIs.</p>
-        {error && <p className="login-error">{error}</p>}
-        <label className="login-field">
-          Work email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            required
-          />
-        </label>
-        <label className="login-field">
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        <button type="submit" className="login-submit" disabled={loading || !email.trim() || !password}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: colors.background.default,
+        p: 3,
+      }}
+    >
+      <Paper
+        component="form"
+        onSubmit={handleSubmit}
+        variant="outlined"
+        sx={{ borderRadius: "0.75rem", p: 5, maxWidth: 420, width: "100%" }}
+      >
+        <Typography
+          variant="overline"
+          sx={{ color: colors.primary.main, fontWeight: 600, display: "block", mb: 1 }}
+        >
+          For every manager at Recykal
+        </Typography>
+        <Typography variant="h1" sx={{ mb: 1 }}>
+          Sign in to continue
+        </Typography>
+        <Typography variant="caption2" sx={{ color: colors.text.muted, display: "block", mb: 3 }}>
+          Use your work email and the password you were given to access workforce planning and KRA/KPIs.
+        </Typography>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 2.5 }}>
+            {error}
+          </Alert>
+        )}
+
+        <TextField
+          label="Work email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
+          required
+          fullWidth
+          sx={{ mb: 2.5 }}
+        />
+        <TextField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+          fullWidth
+          sx={{ mb: 3 }}
+        />
+
+        <Button type="submit" variant="contained" fullWidth disabled={loading || !email.trim() || !password}>
           {loading ? "Signing in…" : "Sign in"}
-        </button>
-        <p className="login-hint">Don't have a password yet? Ask your admin to set one for you.</p>
-      </form>
-    </div>
+        </Button>
+
+        <Typography variant="caption2" sx={{ color: colors.text.muted, display: "block", mt: 2.5 }}>
+          Don't have a password yet? Ask your admin to set one for you.
+        </Typography>
+      </Paper>
+    </Box>
   );
 }

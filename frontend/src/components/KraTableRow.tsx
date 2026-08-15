@@ -1,5 +1,22 @@
 import { useState } from "react";
+import {
+  Box,
+  Checkbox,
+  FormControlLabel,
+  IconButton,
+  MenuItem,
+  Select,
+  TableCell,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import CloseIcon from "@mui/icons-material/Close";
+import AddIcon from "@mui/icons-material/Add";
 import type { KpiItem, KraChecklistItem, KraMetric } from "../api/kraKpiClient.js";
+import { colors } from "../theme/colors.styles.js";
 
 const BLANK_METRIC: KraMetric = {
   name: "",
@@ -23,6 +40,14 @@ const RATING_FIELDS: Array<{ field: keyof KpiItem; label: string }> = [
 ];
 
 const COLUMN_COUNT = 13; // Role, KRA, KPI, Goal, Source, 5 ratings, Weight, Details, Remove
+
+function cellInputSx() {
+  return {
+    "& .MuiOutlinedInput-root": { fontSize: "0.85rem" },
+    "& .MuiOutlinedInput-notchedOutline": { borderColor: "transparent" },
+    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: colors.gray[300] },
+  };
+}
 
 interface KraTableRowProps {
   item: KpiItem;
@@ -83,171 +108,165 @@ export default function KraTableRow({ item, index, onChange, onRemove }: KraTabl
 
   return (
     <>
-      <tr>
-        <td>
-          <input value={item.role} onChange={(e) => set("role", e.target.value)} />
-        </td>
-        <td>
-          <input value={item.kra} onChange={(e) => set("kra", e.target.value)} />
-        </td>
-        <td>
-          <input value={item.kpiTask} onChange={(e) => set("kpiTask", e.target.value)} />
-        </td>
-        <td>
-          <input value={item.goalAnnual} onChange={(e) => set("goalAnnual", e.target.value)} />
-        </td>
-        <td>
-          <input value={item.sourceOfTracking} onChange={(e) => set("sourceOfTracking", e.target.value)} />
-        </td>
+      <TableRow hover>
+        <TableCell sx={{ minWidth: 140 }}>
+          <TextField variant="outlined" size="small" fullWidth value={item.role} onChange={(e) => set("role", e.target.value)} sx={cellInputSx()} />
+        </TableCell>
+        <TableCell sx={{ minWidth: 180 }}>
+          <TextField variant="outlined" size="small" fullWidth value={item.kra} onChange={(e) => set("kra", e.target.value)} sx={cellInputSx()} />
+        </TableCell>
+        <TableCell sx={{ minWidth: 200 }}>
+          <TextField variant="outlined" size="small" fullWidth value={item.kpiTask} onChange={(e) => set("kpiTask", e.target.value)} sx={cellInputSx()} />
+        </TableCell>
+        <TableCell sx={{ minWidth: 220 }}>
+          <TextField variant="outlined" size="small" fullWidth value={item.goalAnnual} onChange={(e) => set("goalAnnual", e.target.value)} sx={cellInputSx()} />
+        </TableCell>
+        <TableCell sx={{ minWidth: 160 }}>
+          <TextField
+            variant="outlined"
+            size="small"
+            fullWidth
+            value={item.sourceOfTracking}
+            onChange={(e) => set("sourceOfTracking", e.target.value)}
+            sx={cellInputSx()}
+          />
+        </TableCell>
         {RATING_FIELDS.map((r) => (
-          <td key={r.field}>
-            <input value={item[r.field] as string} onChange={(e) => set(r.field, e.target.value as KpiItem[typeof r.field])} />
-          </td>
+          <TableCell key={r.field} sx={{ minWidth: 180 }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              fullWidth
+              value={item[r.field] as string}
+              onChange={(e) => set(r.field, e.target.value as KpiItem[typeof r.field])}
+              sx={cellInputSx()}
+            />
+          </TableCell>
         ))}
-        <td>
-          <input
+        <TableCell sx={{ minWidth: 90 }}>
+          <TextField
             type="number"
-            className="weightage-input"
+            variant="outlined"
+            size="small"
+            fullWidth
             value={item.weightagePercent}
             onChange={(e) => set("weightagePercent", Number(e.target.value) || 0)}
+            sx={cellInputSx()}
           />
-        </td>
-        <td>
-          <button type="button" className="row-expand" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
-            {expanded ? "▾" : "▸"} Details
-          </button>
-        </td>
-        <td>
-          <button type="button" className="row-remove" onClick={() => onRemove(index)} aria-label="Remove row">
-            ×
-          </button>
-        </td>
-      </tr>
+        </TableCell>
+        <TableCell>
+          <IconButton size="small" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded} title="Details">
+            {expanded ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+          </IconButton>
+        </TableCell>
+        <TableCell>
+          <IconButton size="small" onClick={() => onRemove(index)} aria-label="Remove row">
+            <CloseIcon fontSize="small" sx={{ color: colors.status.error.main }} />
+          </IconButton>
+        </TableCell>
+      </TableRow>
 
       {expanded && (
-        <tr className="kra-row-details-tr">
-          <td className="kra-row-details-td" colSpan={COLUMN_COUNT}>
-            <div className="kra-row-details">
-              <label className="kra-card-editor-defined">
-                <input type="checkbox" checked={item.defined} onChange={(e) => set("defined", e.target.checked)} />
-                Target set (unchecked shows as "Pending input" on the scorecard)
-              </label>
+        <TableRow>
+          <TableCell colSpan={COLUMN_COUNT} sx={{ background: colors.gray[50], p: 0, borderBottom: `1px solid ${colors.gray[200]}` }}>
+            <Box sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2.5 }}>
+              <FormControlLabel
+                control={<Checkbox checked={item.defined} onChange={(e) => set("defined", e.target.checked)} />}
+                label={
+                  <Typography variant="caption2" sx={{ color: colors.text.secondary }}>
+                    Target set (unchecked shows as "Pending input" on the scorecard)
+                  </Typography>
+                }
+              />
 
-              <div className="kra-card-editor-goals">
-                <label className="kra-card-editor-field">
-                  Goal — H1 (defaults to Annual goal if left blank)
-                  <textarea value={item.goalH1} onChange={(e) => set("goalH1", e.target.value)} rows={2} />
-                </label>
-                <label className="kra-card-editor-field">
-                  Goal — H2 (defaults to Annual goal if left blank)
-                  <textarea value={item.goalH2} onChange={(e) => set("goalH2", e.target.value)} rows={2} />
-                </label>
-              </div>
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
+                <TextField
+                  label="Goal — H1 (defaults to Annual goal if left blank)"
+                  value={item.goalH1}
+                  onChange={(e) => set("goalH1", e.target.value)}
+                  multiline
+                  minRows={2}
+                  fullWidth
+                />
+                <TextField
+                  label="Goal — H2 (defaults to Annual goal if left blank)"
+                  value={item.goalH2}
+                  onChange={(e) => set("goalH2", e.target.value)}
+                  multiline
+                  minRows={2}
+                  fullWidth
+                />
+              </Box>
 
-              <div className="kra-card-editor-section">
-                <div className="kra-card-editor-section-head">
-                  <h4>Tracked Metrics (baseline → target)</h4>
-                  <button type="button" onClick={addMetric}>
-                    + Add metric
-                  </button>
-                </div>
+              <Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                  <Typography variant="overline" sx={{ color: colors.text.caption, fontSize: "0.8rem" }}>
+                    Tracked Metrics (baseline → target)
+                  </Typography>
+                  <IconButton size="small" onClick={addMetric} sx={{ border: `1px solid ${colors.gray[300]}`, borderRadius: 1 }}>
+                    <AddIcon fontSize="small" />
+                  </IconButton>
+                </Box>
                 {item.metrics.length === 0 && (
-                  <p className="kra-card-editor-empty">No numeric metrics for this KRA yet.</p>
+                  <Typography variant="caption2" sx={{ color: colors.text.placeholder }}>
+                    No numeric metrics for this KRA yet.
+                  </Typography>
                 )}
                 {item.metrics.map((m, i) => (
-                  <div className="kra-metric-row" key={i}>
-                    <input
-                      className="kra-metric-name"
-                      value={m.name}
-                      onChange={(e) => updateMetric(i, "name", e.target.value)}
-                      placeholder="Metric name"
-                    />
-                    <input
-                      type="number"
-                      className="kra-metric-num"
-                      value={m.baseline}
-                      onChange={(e) => updateMetric(i, "baseline", Number(e.target.value) || 0)}
-                      placeholder="Baseline"
-                    />
-                    <input
-                      type="number"
-                      className="kra-metric-num"
-                      value={m.target}
-                      onChange={(e) => updateMetric(i, "target", Number(e.target.value) || 0)}
-                      placeholder="Target"
-                    />
-                    <input
-                      className="kra-metric-unit"
-                      value={m.unit}
-                      onChange={(e) => updateMetric(i, "unit", e.target.value)}
-                      placeholder="Unit"
-                    />
-                    <select value={m.direction} onChange={(e) => updateMetric(i, "direction", e.target.value)}>
-                      <option value="down">Lower is better</option>
-                      <option value="up">Higher is better</option>
-                    </select>
-                    <input
-                      className="kra-metric-note"
-                      value={m.note}
-                      onChange={(e) => updateMetric(i, "note", e.target.value)}
-                      placeholder="Note (optional)"
-                    />
-                    <input
-                      className="kra-metric-group"
-                      value={m.group ?? ""}
-                      onChange={(e) => updateMetric(i, "group", e.target.value)}
-                      placeholder="Project (optional)"
-                    />
-                    <button
-                      type="button"
-                      className="kra-metric-remove"
-                      onClick={() => removeMetric(i)}
-                      aria-label="Remove metric"
-                    >
-                      ×
-                    </button>
-                  </div>
+                  <Box key={i} sx={{ display: "flex", gap: 1, mb: 1, alignItems: "center", flexWrap: "wrap" }}>
+                    <TextField size="small" placeholder="Metric name" value={m.name} onChange={(e) => updateMetric(i, "name", e.target.value)} sx={{ flex: 2, minWidth: 140 }} />
+                    <TextField size="small" type="number" placeholder="Baseline" value={m.baseline} onChange={(e) => updateMetric(i, "baseline", Number(e.target.value) || 0)} sx={{ width: 100 }} />
+                    <TextField size="small" type="number" placeholder="Target" value={m.target} onChange={(e) => updateMetric(i, "target", Number(e.target.value) || 0)} sx={{ width: 100 }} />
+                    <TextField size="small" placeholder="Unit" value={m.unit} onChange={(e) => updateMetric(i, "unit", e.target.value)} sx={{ width: 80 }} />
+                    <Select size="small" value={m.direction} onChange={(e) => updateMetric(i, "direction", e.target.value)} sx={{ minWidth: 160 }}>
+                      <MenuItem value="down">Lower is better</MenuItem>
+                      <MenuItem value="up">Higher is better</MenuItem>
+                    </Select>
+                    <TextField size="small" placeholder="Note (optional)" value={m.note} onChange={(e) => updateMetric(i, "note", e.target.value)} sx={{ flex: 2, minWidth: 160 }} />
+                    <TextField size="small" placeholder="Project (optional)" value={m.group ?? ""} onChange={(e) => updateMetric(i, "group", e.target.value)} sx={{ flex: 1, minWidth: 140 }} />
+                    <IconButton size="small" onClick={() => removeMetric(i)} aria-label="Remove metric">
+                      <CloseIcon fontSize="small" sx={{ color: colors.status.error.main }} />
+                    </IconButton>
+                  </Box>
                 ))}
-              </div>
+              </Box>
 
-              <div className="kra-card-editor-section">
-                <div className="kra-card-editor-section-head">
-                  <h4>Checklist (optional — per-unit rollout tracking)</h4>
-                  <button type="button" onClick={addChecklistItem}>
-                    + Add item
-                  </button>
-                </div>
-                {item.checklist.length === 0 && <p className="kra-card-editor-empty">No checklist for this KRA.</p>}
+              <Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                  <Typography variant="overline" sx={{ color: colors.text.caption, fontSize: "0.8rem" }}>
+                    Checklist (optional — per-unit rollout tracking)
+                  </Typography>
+                  <IconButton size="small" onClick={addChecklistItem} sx={{ border: `1px solid ${colors.gray[300]}`, borderRadius: 1 }}>
+                    <AddIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+                {item.checklist.length === 0 && (
+                  <Typography variant="caption2" sx={{ color: colors.text.placeholder }}>
+                    No checklist for this KRA.
+                  </Typography>
+                )}
                 {item.checklist.map((c, i) => (
-                  <div className="kra-checklist-row" key={i}>
-                    <input
-                      className="kra-checklist-name"
+                  <Box key={i} sx={{ display: "flex", gap: 1.5, mb: 1, alignItems: "center" }}>
+                    <TextField
+                      size="small"
+                      placeholder="Item name, e.g. a department"
                       value={c.name}
                       onChange={(e) => updateChecklistItem(i, "name", e.target.value)}
-                      placeholder="Item name, e.g. a department"
+                      sx={{ flex: 1 }}
                     />
-                    <label className="kra-checklist-done">
-                      <input
-                        type="checkbox"
-                        checked={c.done}
-                        onChange={(e) => updateChecklistItem(i, "done", e.target.checked)}
-                      />
-                      Done
-                    </label>
-                    <button
-                      type="button"
-                      className="kra-metric-remove"
-                      onClick={() => removeChecklistItem(i)}
-                      aria-label="Remove checklist item"
-                    >
-                      ×
-                    </button>
-                  </div>
+                    <FormControlLabel
+                      control={<Checkbox checked={c.done} onChange={(e) => updateChecklistItem(i, "done", e.target.checked)} />}
+                      label={<Typography variant="caption2">Done</Typography>}
+                    />
+                    <IconButton size="small" onClick={() => removeChecklistItem(i)} aria-label="Remove checklist item">
+                      <CloseIcon fontSize="small" sx={{ color: colors.status.error.main }} />
+                    </IconButton>
+                  </Box>
                 ))}
-              </div>
-            </div>
-          </td>
-        </tr>
+              </Box>
+            </Box>
+          </TableCell>
+        </TableRow>
       )}
     </>
   );

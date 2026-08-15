@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
+import { Box, Typography } from "@mui/material";
 import { sendChatQuery } from "../api/chatClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
 import ChatInput from "./ChatInput.js";
 import ChatSidebar from "./ChatSidebar.js";
+import PageContainer from "../shared/components/PageContainer.js";
+import PageHeader from "../shared/components/PageHeader.js";
+import AppChip from "../shared/components/AppChip.js";
+import { colors } from "../theme/colors.styles.js";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -18,15 +23,18 @@ const POSTURE_LABELS: Record<string, string> = {
   flag_and_route: "Flagged → HR/Legal",
 };
 
+const POSTURE_CHIP_VARIANT: Record<string, "success" | "warning" | "error"> = {
+  recommend_freely: "success",
+  recommend_with_signoff: "warning",
+  analysis_only: "warning",
+  flag_and_route: "error",
+};
+
 function toChatMessages(sessionMessages: chatApi.ChatSessionMessage[]): ChatMessage[] {
   return sessionMessages.map((m) => ({ role: m.role === "user" ? "user" : "assistant", text: m.text }));
 }
 
-interface ChatWindowProps {
-  onBackHome: () => void;
-}
-
-export default function ChatWindow({ onBackHome }: ChatWindowProps) {
+export default function ChatWindow() {
   const [sessions, setSessions] = useState<chatApi.ChatSessionSummary[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -118,52 +126,87 @@ export default function ChatWindow({ onBackHome }: ChatWindowProps) {
   }
 
   return (
-    <div className="chat-shell chat-theme-dark">
-      <div className="chat-sidebar-wrap">
-        <ChatSidebar
-          sessions={sessions}
-          activeSessionId={sessionId}
-          onSelect={handleSelectSession}
-          onNewChat={handleNewChat}
-          onBackHome={onBackHome}
-        />
-      </div>
+    <PageContainer sx={{ pt: 0, display: "flex", flexDirection: "column" }}>
+      <PageHeader title="Workforce Planning" caption="Grounded in live HRIS data, guardrail-gated by decision type" />
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex", gap: 2 }}>
+        <Box sx={{ border: `1px solid ${colors.gray[200]}`, borderRadius: "0.75rem", overflow: "hidden" }}>
+          <ChatSidebar sessions={sessions} activeSessionId={sessionId} onSelect={handleSelectSession} onNewChat={handleNewChat} />
+        </Box>
 
-      <div className="chat-main">
-        <div className="chat-history">
-          <div className="chat-history-inner">
-            {messages.length === 0 && (
-              <p className="chat-empty">
-                Ask a workforce planning question, e.g. "Should I hire for the open Data Engineer role?" or "What's
-                my Platform team's headcount and tenure look like?"
-              </p>
-            )}
-            {messages.map((m, i) => (
-              <div key={i} className={`chat-message chat-message--${m.role}`}>
-                {m.role === "assistant" && m.posture && (
-                  <span className={`posture-badge posture-badge--${m.posture}`}>
-                    {POSTURE_LABELS[m.posture] ?? m.posture} · {m.decisionType?.replace(/_/g, " ")}
-                  </span>
-                )}
-                <p>{m.text}</p>
-              </div>
-            ))}
-            {loading && <div className="chat-message chat-message--assistant chat-message--loading">Thinking…</div>}
-            {error && <div className="chat-error">{error}</div>}
-          </div>
-        </div>
-        <div className="chat-input-area">
-          <ChatInput
-            value={input}
-            onChange={setInput}
-            onSubmit={handleSend}
-            attachments={attachments}
-            onAttachmentsChange={setAttachments}
-            placeholder="Ask a workforce planning question… (Enter to send, Shift+Enter for a new line)"
-            disabled={loading}
-          />
-        </div>
-      </div>
-    </div>
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            border: `1px solid ${colors.gray[200]}`,
+            borderRadius: "0.75rem",
+            overflow: "hidden",
+            background: "#fff",
+          }}
+        >
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", p: 3 }}>
+            <Box sx={{ maxWidth: 720, mx: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+              {messages.length === 0 && (
+                <Typography variant="caption2" sx={{ color: colors.text.muted }}>
+                  Ask a workforce planning question, e.g. "Should I hire for the open Data Engineer role?" or "What's
+                  my Platform team's headcount and tenure look like?"
+                </Typography>
+              )}
+              {messages.map((m, i) => (
+                <Box key={i} sx={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%" }}>
+                  {m.role === "assistant" && m.posture && (
+                    <Box sx={{ mb: 0.5 }}>
+                      <AppChip
+                        label={`${POSTURE_LABELS[m.posture] ?? m.posture} · ${m.decisionType?.replace(/_/g, " ") ?? ""}`}
+                        variant={POSTURE_CHIP_VARIANT[m.posture] ?? "primary"}
+                      />
+                    </Box>
+                  )}
+                  <Box
+                    sx={{
+                      px: 2,
+                      py: 1.25,
+                      borderRadius: "0.75rem",
+                      borderBottomRightRadius: m.role === "user" ? 4 : "0.75rem",
+                      borderBottomLeftRadius: m.role === "assistant" ? 4 : "0.75rem",
+                      backgroundColor: m.role === "user" ? colors.chip.primary.bg : colors.gray[50],
+                      color: colors.text.primary,
+                    }}
+                  >
+                    <Typography variant="caption2" sx={{ whiteSpace: "pre-wrap" }}>
+                      {m.text}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+              {loading && (
+                <Typography variant="caption2" sx={{ color: colors.text.muted, fontStyle: "italic" }}>
+                  Thinking…
+                </Typography>
+              )}
+              {error && (
+                <Typography variant="caption2" sx={{ color: colors.status.error.main }}>
+                  {error}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+          <Box sx={{ borderTop: `1px solid ${colors.gray[200]}`, p: 2 }}>
+            <Box sx={{ maxWidth: 720, mx: "auto" }}>
+              <ChatInput
+                value={input}
+                onChange={setInput}
+                onSubmit={handleSend}
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
+                placeholder="Ask a workforce planning question… (Enter to send, Shift+Enter for a new line)"
+                disabled={loading}
+              />
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    </PageContainer>
   );
 }

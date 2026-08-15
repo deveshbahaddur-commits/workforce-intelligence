@@ -1,4 +1,9 @@
-import { useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
+import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
+import { useRef } from "react";
+import { Box, IconButton, Paper, TextField, Chip } from "@mui/material";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import { colors } from "../theme/colors.styles.js";
 
 interface ChatInputProps {
   value: string;
@@ -10,13 +15,10 @@ interface ChatInputProps {
   disabled?: boolean;
 }
 
-const MAX_HEIGHT_PX = 160;
-
 /**
- * Shared multi-line chat input: Enter sends, Shift+Enter inserts a newline,
- * auto-grows up to MAX_HEIGHT_PX then scrolls. `e.shiftKey` is a standard
- * DOM KeyboardEvent property — identical behavior on Windows and Mac
- * browsers, no platform branching needed.
+ * Shared multi-line chat input: Enter sends, Shift+Enter inserts a newline
+ * (`e.shiftKey` is a standard DOM property — identical on Windows and Mac).
+ * Auto-grow is MUI TextField's own multiline/maxRows behavior, not hand-rolled.
  */
 export default function ChatInput({
   value,
@@ -27,21 +29,13 @@ export default function ChatInput({
   placeholder,
   disabled,
 }: ChatInputProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT_PX)}px`;
-  }, [value]);
 
   function canSubmit() {
     return (value.trim() || attachments.length > 0) && !disabled;
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (canSubmit()) onSubmit();
@@ -51,10 +45,6 @@ export default function ChatInput({
   function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
     if (canSubmit()) onSubmit();
-  }
-
-  function handleChange(e: ChangeEvent<HTMLTextAreaElement>) {
-    onChange(e.target.value);
   }
 
   function handleFilesSelected(e: ChangeEvent<HTMLInputElement>) {
@@ -68,46 +58,73 @@ export default function ChatInput({
   }
 
   return (
-    <form className="chat-input-form" onSubmit={handleFormSubmit}>
+    <Box component="form" onSubmit={handleFormSubmit}>
       {attachments.length > 0 && (
-        <div className="chat-attachment-chips">
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1 }}>
           {attachments.map((file, i) => (
-            <span className="chat-attachment-chip" key={`${file.name}-${i}`}>
-              📎 {file.name}
-              <button type="button" onClick={() => removeAttachment(i)} aria-label={`Remove ${file.name}`}>
-                ×
-              </button>
-            </span>
+            <Chip
+              key={`${file.name}-${i}`}
+              icon={<AttachFileIcon sx={{ fontSize: 16 }} />}
+              label={file.name}
+              size="small"
+              onDelete={() => removeAttachment(i)}
+              sx={{ backgroundColor: colors.gray[100] }}
+            />
           ))}
-        </div>
+        </Box>
       )}
-      <div className="chat-input-row">
+      <Paper
+        variant="outlined"
+        sx={{
+          display: "flex",
+          alignItems: "flex-end",
+          gap: 1,
+          p: 1,
+          borderRadius: "1.5rem",
+          borderColor: colors.gray[300],
+        }}
+      >
         <input ref={fileInputRef} type="file" multiple hidden onChange={handleFilesSelected} />
-        <button
-          type="button"
-          className="chat-attach-button"
+        <IconButton
+          size="small"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
           aria-label="Attach files"
           title="Attach files"
+          sx={{ border: `1px solid ${colors.gray[300]}` }}
         >
-          📎
-        </button>
-        <textarea
-          ref={textareaRef}
+          <AttachFileIcon fontSize="small" />
+        </IconButton>
+        <TextField
           value={value}
-          onChange={handleChange}
+          onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          rows={1}
+          multiline
+          minRows={1}
+          maxRows={6}
+          fullWidth
+          variant="standard"
+          InputProps={{ disableUnderline: true }}
+          sx={{ px: 1 }}
         />
-        <button type="submit" disabled={!canSubmit()} aria-label="Send message" title="Send">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
-    </form>
+        <IconButton
+          type="submit"
+          size="small"
+          disabled={!canSubmit()}
+          aria-label="Send message"
+          title="Send"
+          sx={{
+            backgroundColor: canSubmit() ? colors.primary.main : colors.gray[200],
+            color: "#fff",
+            "&:hover": { backgroundColor: colors.primary.dark600 },
+            "&.Mui-disabled": { backgroundColor: colors.gray[200], color: colors.text.placeholder },
+          }}
+        >
+          <ArrowUpwardIcon fontSize="small" />
+        </IconButton>
+      </Paper>
+    </Box>
   );
 }

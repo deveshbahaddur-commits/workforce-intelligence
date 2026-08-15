@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { Box, Collapse, List, ListItemButton, Typography } from "@mui/material";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import type { ReporteeNode } from "../api/kraKpiClient.js";
+import { colors } from "../theme/colors.styles.js";
 
 interface ReporteeTreeProps {
   nodes: ReporteeNode[];
@@ -10,14 +13,18 @@ interface ReporteeTreeProps {
 /** Root list: a manager's direct reports, always visible. */
 export default function ReporteeTree({ nodes, selectedEmployeeId, onSelect }: ReporteeTreeProps) {
   if (nodes.length === 0) {
-    return <p className="reportee-empty">No direct reports.</p>;
+    return (
+      <Typography variant="caption2" sx={{ color: colors.text.placeholder }}>
+        No direct reports.
+      </Typography>
+    );
   }
   return (
-    <ul className="reportee-tree">
+    <List sx={{ p: 0 }}>
       {nodes.map((node) => (
         <ReporteeNodeItem key={node.employeeId} node={node} selectedEmployeeId={selectedEmployeeId} onSelect={onSelect} />
       ))}
-    </ul>
+    </List>
   );
 }
 
@@ -37,45 +44,80 @@ function ReporteeNodeItem({ node, selectedEmployeeId, onSelect }: ReporteeNodeIt
   const hasIndirectReports = node.reports.length > 0;
 
   return (
-    <li>
-      <div
-        className={`reportee-node${selectedEmployeeId === node.employeeId ? " reportee-node--selected" : ""}`}
-        style={{ paddingLeft: `${(node.depth - 1) * 16}px` }}
+    <Box sx={{ pl: `${(node.depth - 1) * 16}px` }}>
+      <ListItemButton
+        selected={selectedEmployeeId === node.employeeId}
+        onClick={() => onSelect(node.employeeId)}
+        sx={{
+          borderRadius: 2,
+          mb: 0.25,
+          gap: 0.5,
+          "&.Mui-selected": { backgroundColor: colors.chip.primary.bg },
+          "&.Mui-selected:hover": { backgroundColor: colors.chip.primary.bg },
+        }}
       >
         {hasIndirectReports ? (
-          <button
-            type="button"
-            className={`reportee-expand${expanded ? " reportee-expand--open" : ""}`}
-            onClick={() => setExpanded((v) => !v)}
+          <Box
+            component="span"
+            role="button"
             aria-expanded={expanded}
             aria-label={
-              expanded
-                ? "Hide indirect reportees"
-                : `Show ${node.reports.length} indirect reportee${node.reports.length === 1 ? "" : "s"}`
+              expanded ? "Hide indirect reportees" : `Show ${node.reports.length} indirect reportee${node.reports.length === 1 ? "" : "s"}`
             }
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded((v) => !v);
+            }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 22,
+              flexShrink: 0,
+              transform: expanded ? "rotate(90deg)" : "none",
+              transition: "transform 120ms",
+              color: colors.text.muted,
+            }}
           >
-            ▸
-          </button>
+            <ChevronRightIcon fontSize="small" />
+          </Box>
         ) : (
-          <span className="reportee-expand-spacer" />
+          <Box sx={{ width: 22, flexShrink: 0 }} />
         )}
-        <button type="button" className="reportee-select" onClick={() => onSelect(node.employeeId)}>
-          <span className="reportee-name">{node.name}</span>
-          <span className="reportee-role">{node.role}</span>
+        <Box sx={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
+          <Typography variant="caption3" noWrap sx={{ color: colors.text.primary }}>
+            {node.name}
+          </Typography>
+          <Typography variant="caption" noWrap sx={{ color: colors.text.muted, flex: 1 }}>
+            {node.role}
+          </Typography>
           {hasIndirectReports && (
-            <span className="reportee-hint">
-              {node.reports.length} indirect{expanded ? " (shown below)" : ""}
-            </span>
+            <Typography
+              variant="caption"
+              sx={{
+                color: colors.primary.darker,
+                backgroundColor: colors.chip.primary.bg,
+                px: 0.75,
+                borderRadius: "999px",
+                whiteSpace: "nowrap",
+                fontWeight: 600,
+              }}
+            >
+              {node.reports.length} indirect
+            </Typography>
           )}
-        </button>
-      </div>
-      {hasIndirectReports && expanded && (
-        <ul className="reportee-tree reportee-tree--nested">
-          {node.reports.map((child) => (
-            <ReporteeNodeItem key={child.employeeId} node={child} selectedEmployeeId={selectedEmployeeId} onSelect={onSelect} />
-          ))}
-        </ul>
+        </Box>
+      </ListItemButton>
+      {hasIndirectReports && (
+        <Collapse in={expanded}>
+          <Box sx={{ borderLeft: `1px solid ${colors.gray[200]}`, ml: "10px" }}>
+            {node.reports.map((child) => (
+              <ReporteeNodeItem key={child.employeeId} node={child} selectedEmployeeId={selectedEmployeeId} onSelect={onSelect} />
+            ))}
+          </Box>
+        </Collapse>
       )}
-    </li>
+    </Box>
   );
 }
