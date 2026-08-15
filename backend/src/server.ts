@@ -16,6 +16,7 @@ import type { ChatSessionKind, ChatSessionMessage } from "./chat/types.js";
 import { attachUser, requireAuth, issueSessionCookie, clearSessionCookie } from "./auth/session.js";
 import { getPasswordHash } from "./auth/credentialStore.js";
 import { verifyPassword } from "./auth/passwordHash.js";
+import { initSchema } from "./db/schema.js";
 
 const app = express();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
@@ -33,7 +34,7 @@ const PORT = Number(process.env.PORT ?? 8787);
 // password hash. No self-service signup or reset — see
 // src/scripts/setPassword.ts, run directly by whoever administers this.
 
-app.post("/auth/login", (req, res) => {
+app.post("/auth/login", async (req, res) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!email || !password) {
@@ -46,25 +47,30 @@ app.post("/auth/login", (req, res) => {
   // reveal which of those it was.
   const invalid = () => res.status(401).json({ error: "Incorrect email or password." });
 
-  const employee = EMPLOYEES.find((e) => e.email === email);
-  if (!employee) {
-    invalid();
-    return;
-  }
-  const hash = getPasswordHash(employee.employeeId);
-  if (!hash || !verifyPassword(password, hash)) {
-    invalid();
-    return;
-  }
+  try {
+    const employee = EMPLOYEES.find((e) => e.email === email);
+    if (!employee) {
+      invalid();
+      return;
+    }
+    const hash = await getPasswordHash(employee.employeeId);
+    if (!hash || !verifyPassword(password, hash)) {
+      invalid();
+      return;
+    }
 
-  const sessionUser = {
-    email: employee.email,
-    name: employee.name,
-    employeeId: employee.employeeId,
-    role: employee.role,
-  };
-  issueSessionCookie(res, sessionUser);
-  res.json({ user: sessionUser });
+    const sessionUser = {
+      email: employee.email,
+      name: employee.name,
+      employeeId: employee.employeeId,
+      role: employee.role,
+    };
+    issueSessionCookie(res, sessionUser);
+    res.json({ user: sessionUser });
+  } catch (err) {
+    console.error("Error handling /auth/login:", err);
+    res.status(500).json({ error: "Something went wrong signing in." });
+  }
 });
 
 app.post("/auth/logout", (_req, res) => {
@@ -104,7 +110,7 @@ app.post("/api/chat", async (req, res) => {
         decision,
         toolCalls: [],
         finalResponse: decision.shortCircuitResponse ?? "",
-      });
+      }).catch((err) => console.error("Failed to write audit record:", err));
       res.json({
         response: decision.shortCircuitResponse,
         decisionType: decision.classification.decisionType,
@@ -115,7 +121,9 @@ app.post("/api/chat", async (req, res) => {
 
     const { responseText, toolCalls } = await runWorkforcePlanningAgent(query);
 
-    logInteraction({ query, decision, toolCalls, finalResponse: responseText });
+    logInteraction({ query, decision, toolCalls, finalResponse: responseText }).catch((err) =>
+      console.error("Failed to write audit record:", err),
+    );
 
     res.json({
       response: responseText,
@@ -156,7 +164,7 @@ app.post("/api/kpi/draft", async (req, res) => {
   }
 });
 
-app.post("/api/kpi/sets", (req, res) => {
+app.post("/api/kpi/sets", async (req, res) => {
   const { employeeId, items } = req.body ?? {};
   const managerId = req.user!.employeeId;
   if (typeof employeeId !== "string" || !Array.isArray(items) || items.length === 0) {
@@ -169,17 +177,22 @@ app.post("/api/kpi/sets", (req, res) => {
   }
   const employee = EMPLOYEES.find((e) => e.employeeId === employeeId)!;
 
-  const saved = saveKpiSet({
-    employeeId,
-    employeeName: employee.name,
-    managerId,
-    managerName: req.user!.name,
-    items: items as KpiItem[],
-  });
-  res.json(saved);
+  try {
+    const saved = await saveKpiSet({
+      employeeId,
+      employeeName: employee.name,
+      managerId,
+      managerName: req.user!.name,
+      items: items as KpiItem[],
+    });
+    res.json(saved);
+  } catch (err) {
+    console.error("Error handling POST /api/kpi/sets:", err);
+    res.status(500).json({ error: "Something went wrong saving the KPI set." });
+  }
 });
 
-app.get("/api/kpi/sets", (req, res) => {
+app.get("/api/kpi/sets", async (req, res) => {
   const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : "";
   if (!employeeId) {
     res.status(400).json({ error: "Query param employeeId is required." });
@@ -189,7 +202,12 @@ app.get("/api/kpi/sets", (req, res) => {
     res.status(403).json({ error: "That employee is not one of your reportees." });
     return;
   }
-  res.json(listKpiSetsForEmployee(employeeId));
+  try {
+    res.json(await listKpiSetsForEmployee(employeeId));
+  } catch (err) {
+    console.error("Error handling GET /api/kpi/sets:", err);
+    res.status(500).json({ error: "Something went wrong loading KPI sets." });
+  }
 });
 
 // --- Chat session persistence (sidebar history) ---
@@ -202,7 +220,7 @@ function parseKind(value: unknown): ChatSessionKind | null {
   return typeof value === "string" && (CHAT_KINDS as string[]).includes(value) ? (value as ChatSessionKind) : null;
 }
 
-app.post("/api/chat/sessions", (req, res) => {
+app.post("/api/chat/sessions", async (req, res) => {
   const kind = parseKind(req.body?.kind);
   const employeeId = typeof req.body?.employeeId === "string" ? req.body.employeeId : null;
   if (!kind) {
@@ -213,48 +231,73 @@ app.post("/api/chat/sessions", (req, res) => {
     res.status(403).json({ error: "That employee is not one of your reportees." });
     return;
   }
-  res.json(createSession({ kind, managerId: req.user!.employeeId, employeeId }));
+  try {
+    res.json(await createSession({ kind, managerId: req.user!.employeeId, employeeId }));
+  } catch (err) {
+    console.error("Error handling POST /api/chat/sessions:", err);
+    res.status(500).json({ error: "Something went wrong creating the chat session." });
+  }
 });
 
-app.get("/api/chat/sessions", (req, res) => {
+app.get("/api/chat/sessions", async (req, res) => {
   const kind = parseKind(req.query.kind);
   const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : null;
   if (!kind) {
     res.status(400).json({ error: "Query param kind is required." });
     return;
   }
-  res.json(listSessions({ kind, managerId: req.user!.employeeId, employeeId }));
-});
-
-app.get("/api/chat/sessions/:id", (req, res) => {
-  const id = Number(req.params.id);
-  const session = Number.isInteger(id) ? getSession(id) : null;
-  if (!session || session.managerId !== req.user!.employeeId) {
-    res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
-    return;
+  try {
+    res.json(await listSessions({ kind, managerId: req.user!.employeeId, employeeId }));
+  } catch (err) {
+    console.error("Error handling GET /api/chat/sessions:", err);
+    res.status(500).json({ error: "Something went wrong loading chat sessions." });
   }
-  res.json(session);
 });
 
-app.put("/api/chat/sessions/:id/messages", (req, res) => {
+app.get("/api/chat/sessions/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const session = Number.isInteger(id) ? await getSession(id) : null;
+    if (!session || session.managerId !== req.user!.employeeId) {
+      res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
+      return;
+    }
+    res.json(session);
+  } catch (err) {
+    console.error("Error handling GET /api/chat/sessions/:id:", err);
+    res.status(500).json({ error: "Something went wrong loading the chat session." });
+  }
+});
+
+app.put("/api/chat/sessions/:id/messages", async (req, res) => {
   const id = Number(req.params.id);
   const messages = req.body?.messages;
   if (!Number.isInteger(id) || !Array.isArray(messages)) {
     res.status(400).json({ error: "Request body must include a messages array." });
     return;
   }
-  const existing = getSession(id);
-  if (!existing || existing.managerId !== req.user!.employeeId) {
-    res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
-    return;
+  try {
+    const existing = await getSession(id);
+    if (!existing || existing.managerId !== req.user!.employeeId) {
+      res.status(404).json({ error: `No chat session with id ${req.params.id}.` });
+      return;
+    }
+    const session = await replaceMessages(id, messages as ChatSessionMessage[]);
+    res.json(session);
+  } catch (err) {
+    console.error("Error handling PUT /api/chat/sessions/:id/messages:", err);
+    res.status(500).json({ error: "Something went wrong saving the chat session." });
   }
-  const session = replaceMessages(id, messages as ChatSessionMessage[]);
-  res.json(session);
 });
 
 // Read-only visibility into the audit log — handy for demoing the guardrail.
-app.get("/api/audit", (_req, res) => {
-  res.json(getRecentAuditRecords(50));
+app.get("/api/audit", async (_req, res) => {
+  try {
+    res.json(await getRecentAuditRecords(50));
+  } catch (err) {
+    console.error("Error handling GET /api/audit:", err);
+    res.status(500).json({ error: "Something went wrong loading the audit log." });
+  }
 });
 
 // In production, this same server also serves the built frontend, so the
@@ -268,6 +311,8 @@ if (fs.existsSync(frontendDist)) {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
+
+await initSchema();
 
 // Block startup on the first HRIS fetch so no request races an empty
 // EMPLOYEES array; a failed fetch is logged loudly but doesn't crash the

@@ -15,12 +15,12 @@ export interface ToolCallRecord {
  * `auditStore.ts` (the persistence backend) is meant to change if this ever
  * moves off SQLite; this interface should not need to.
  */
-export function logInteraction(params: {
+export async function logInteraction(params: {
   query: string;
   decision: GuardrailDecision;
   toolCalls: ToolCallRecord[];
   finalResponse: string;
-}): number {
+}): Promise<number> {
   const record: AuditRecord = {
     timestamp: new Date().toISOString(),
     query: params.query,

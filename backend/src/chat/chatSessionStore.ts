@@ -1,68 +1,8 @@
-import { DatabaseSync } from "node:sqlite";
-import path from "node:path";
-import fs from "node:fs";
+import { db } from "../db/client.js";
+import type { Row } from "@libsql/client";
 import type { ChatSession, ChatSessionKind, ChatSessionMessage, ChatSessionSummary } from "./types.js";
 
-const dbPath = process.env.CHAT_DB_PATH ?? "./data/chat.sqlite";
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-
-const db = new DatabaseSync(dbPath);
-db.exec("PRAGMA journal_mode = WAL;");
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS chat_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind TEXT NOT NULL,
-    manager_id TEXT NOT NULL,
-    employee_id TEXT,
-    title TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-`);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS chat_session_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id INTEGER NOT NULL,
-    sort_order INTEGER NOT NULL,
-    role TEXT NOT NULL,
-    text TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
-  );
-`);
-
-const insertSessionStmt = db.prepare(`
-  INSERT INTO chat_sessions (kind, manager_id, employee_id, title, created_at, updated_at)
-  VALUES (@kind, @managerId, @employeeId, @title, @createdAt, @updatedAt)
-`);
-
-const selectSessionByIdStmt = db.prepare(`SELECT * FROM chat_sessions WHERE id = ?`);
-
-const selectSessionsStmt = db.prepare(`
-  SELECT * FROM chat_sessions
-  WHERE kind = ? AND manager_id = ? AND (
-    (? IS NULL AND employee_id IS NULL) OR employee_id = ?
-  )
-  ORDER BY updated_at DESC
-`);
-
-const deleteMessagesStmt = db.prepare(`DELETE FROM chat_session_messages WHERE session_id = ?`);
-
-const insertMessageStmt = db.prepare(`
-  INSERT INTO chat_session_messages (session_id, sort_order, role, text)
-  VALUES (@sessionId, @sortOrder, @role, @text)
-`);
-
-const selectMessagesStmt = db.prepare(
-  `SELECT * FROM chat_session_messages WHERE session_id = ? ORDER BY sort_order ASC`,
-);
-
-const updateSessionStmt = db.prepare(`
-  UPDATE chat_sessions SET title = @title, updated_at = @updatedAt WHERE id = @id
-`);
-
-function rowToSummary(r: Record<string, unknown>): ChatSessionSummary {
+function rowToSummary(r: Row): ChatSessionSummary {
   return {
     id: r.id as number,
     kind: r.kind as ChatSessionKind,
@@ -81,62 +21,73 @@ function deriveTitle(messages: ChatSessionMessage[]): string | null {
   return text.length > 60 ? `${text.slice(0, 60)}…` : text || null;
 }
 
-export function createSession(params: {
+export async function createSession(params: {
   kind: ChatSessionKind;
   managerId: string;
   employeeId: string | null;
-}): ChatSession {
+}): Promise<ChatSession> {
   const now = new Date().toISOString();
-  const info = insertSessionStmt.run({
-    kind: params.kind,
-    managerId: params.managerId,
-    employeeId: params.employeeId,
-    title: null,
-    createdAt: now,
-    updatedAt: now,
+  const result = await db.execute({
+    sql: `INSERT INTO chat_sessions (kind, manager_id, employee_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [params.kind, params.managerId, params.employeeId, null, now, now],
   });
-  const id = Number(info.lastInsertRowid);
-  const row = selectSessionByIdStmt.get(id) as Record<string, unknown>;
-  return { ...rowToSummary(row), messages: [] };
+  const id = Number(result.lastInsertRowid);
+  const row = await db.execute({ sql: `SELECT * FROM chat_sessions WHERE id = ?`, args: [id] });
+  return { ...rowToSummary(row.rows[0]), messages: [] };
 }
 
-export function listSessions(params: {
+export async function listSessions(params: {
   kind: ChatSessionKind;
   managerId: string;
   employeeId: string | null;
-}): ChatSessionSummary[] {
-  const rows = selectSessionsStmt.all(
-    params.kind,
-    params.managerId,
-    params.employeeId,
-    params.employeeId,
-  ) as Array<Record<string, unknown>>;
-  return rows.map(rowToSummary);
+}): Promise<ChatSessionSummary[]> {
+  const result = await db.execute({
+    sql: `SELECT * FROM chat_sessions
+          WHERE kind = ? AND manager_id = ? AND (
+            (? IS NULL AND employee_id IS NULL) OR employee_id = ?
+          )
+          ORDER BY updated_at DESC`,
+    args: [params.kind, params.managerId, params.employeeId, params.employeeId],
+  });
+  return result.rows.map(rowToSummary);
 }
 
-export function getSession(id: number): ChatSession | null {
-  const row = selectSessionByIdStmt.get(id) as Record<string, unknown> | undefined;
-  if (!row) return null;
-  const messageRows = selectMessagesStmt.all(id) as Array<Record<string, unknown>>;
-  const messages: ChatSessionMessage[] = messageRows.map((m) => ({
+export async function getSession(id: number): Promise<ChatSession | null> {
+  const row = await db.execute({ sql: `SELECT * FROM chat_sessions WHERE id = ?`, args: [id] });
+  if (row.rows.length === 0) return null;
+  const messageRows = await db.execute({
+    sql: `SELECT * FROM chat_session_messages WHERE session_id = ? ORDER BY sort_order ASC`,
+    args: [id],
+  });
+  const messages: ChatSessionMessage[] = messageRows.rows.map((m) => ({
     role: m.role as "user" | "model",
     text: m.text as string,
   }));
-  return { ...rowToSummary(row), messages };
+  return { ...rowToSummary(row.rows[0]), messages };
 }
 
-export function replaceMessages(id: number, messages: ChatSessionMessage[]): ChatSession | null {
-  const existing = selectSessionByIdStmt.get(id) as Record<string, unknown> | undefined;
-  if (!existing) return null;
+export async function replaceMessages(id: number, messages: ChatSessionMessage[]): Promise<ChatSession | null> {
+  const existingRow = await db.execute({ sql: `SELECT * FROM chat_sessions WHERE id = ?`, args: [id] });
+  if (existingRow.rows.length === 0) return null;
+  const existing = existingRow.rows[0];
 
-  deleteMessagesStmt.run(id);
-  messages.forEach((m, index) => {
-    insertMessageStmt.run({ sessionId: id, sortOrder: index, role: m.role, text: m.text });
-  });
+  await db.execute({ sql: `DELETE FROM chat_session_messages WHERE session_id = ?`, args: [id] });
+  if (messages.length > 0) {
+    await db.batch(
+      messages.map((m, index) => ({
+        sql: `INSERT INTO chat_session_messages (session_id, sort_order, role, text) VALUES (?, ?, ?, ?)`,
+        args: [id, index, m.role, m.text],
+      })),
+      "write",
+    );
+  }
 
   const now = new Date().toISOString();
   const title = (existing.title as string | null) ?? deriveTitle(messages);
-  updateSessionStmt.run({ id, title, updatedAt: now });
+  await db.execute({
+    sql: `UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?`,
+    args: [title, now, id],
+  });
 
   return getSession(id);
 }

@@ -8,6 +8,7 @@
 import { EMPLOYEES, initHrisData } from "../mcp/hris/data/seed.js";
 import { setPasswordHash } from "../auth/credentialStore.js";
 import { hashPassword } from "../auth/passwordHash.js";
+import { initSchema } from "../db/schema.js";
 
 const [, , emailArg, passwordArg] = process.argv;
 
@@ -21,6 +22,7 @@ if (passwordArg.length < 8) {
   process.exit(1);
 }
 
+await initSchema();
 await initHrisData();
 
 const email = emailArg.trim().toLowerCase();
@@ -31,6 +33,6 @@ if (!employee) {
   process.exit(1);
 }
 
-setPasswordHash(employee.employeeId, hashPassword(passwordArg));
+await setPasswordHash(employee.employeeId, hashPassword(passwordArg));
 console.log(`Password set for ${employee.name} (${employee.employeeId}, ${employee.role}). Share it with them directly.`);
 process.exit(0);
