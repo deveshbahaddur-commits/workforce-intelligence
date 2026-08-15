@@ -1,6 +1,7 @@
 import { GoogleGenAI, type Content } from "@google/genai";
 import { EMPLOYEES } from "../mcp/hris/data/seed.js";
 import type { KpiDraftChatMessage, KpiItem } from "./types.js";
+import { withGeminiRetry } from "../lib/withGeminiRetry.js";
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -150,15 +151,17 @@ export async function draftKpis(params: {
   managerId: string;
   history: KpiDraftChatMessage[];
 }): Promise<{ reply: string; draftKpis: KpiItem[] }> {
-  const response = await client.models.generateContent({
-    model: "gemini-flash-latest",
-    contents: toContents(params.history),
-    config: {
-      systemInstruction: buildSystemPrompt(params.employeeId, params.managerId),
-      responseMimeType: "application/json",
-      responseJsonSchema: DRAFT_RESPONSE_SCHEMA,
-    },
-  });
+  const response = await withGeminiRetry(() =>
+    client.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: toContents(params.history),
+      config: {
+        systemInstruction: buildSystemPrompt(params.employeeId, params.managerId),
+        responseMimeType: "application/json",
+        responseJsonSchema: DRAFT_RESPONSE_SCHEMA,
+      },
+    }),
+  );
 
   const text = response.text;
   if (!text) {

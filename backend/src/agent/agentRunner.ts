@@ -4,6 +4,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createHrisServer } from "../mcp/hris/server.js";
 import { WORKFORCE_PLANNING_SYSTEM_PROMPT } from "./systemPrompt.js";
 import type { ToolCallRecord } from "../audit/auditLogger.js";
+import { withGeminiRetry } from "../lib/withGeminiRetry.js";
 
 export interface AgentRunResult {
   responseText: string;
@@ -39,15 +40,17 @@ export async function runWorkforcePlanningAgent(userQuery: string): Promise<Agen
   await mcpClient.connect(clientTransport);
 
   try {
-    const response = await client.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: userQuery,
-      config: {
-        systemInstruction: WORKFORCE_PLANNING_SYSTEM_PROMPT,
-        tools: [mcpToTool(mcpClient)],
-        automaticFunctionCalling: { maximumRemoteCalls: 8 },
-      },
-    });
+    const response = await withGeminiRetry(() =>
+      client.models.generateContent({
+        model: "gemini-flash-latest",
+        contents: userQuery,
+        config: {
+          systemInstruction: WORKFORCE_PLANNING_SYSTEM_PROMPT,
+          tools: [mcpToTool(mcpClient)],
+          automaticFunctionCalling: { maximumRemoteCalls: 8 },
+        },
+      }),
+    );
 
     const toolCalls: ToolCallRecord[] = [];
     const history = response.automaticFunctionCallingHistory ?? [];

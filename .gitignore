@@ -5,3 +5,4 @@ backend/data/
 backend/service-account.json
 *.tsbuildinfo
 .claude/settings.local.json
+.claude/settings.json

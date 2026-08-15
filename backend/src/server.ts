@@ -17,6 +17,7 @@ import { attachUser, requireAuth, issueSessionCookie, clearSessionCookie } from 
 import { getPasswordHash, setPasswordHash } from "./auth/credentialStore.js";
 import { hashPassword, verifyPassword } from "./auth/passwordHash.js";
 import { initSchema } from "./db/schema.js";
+import { describeGeminiError } from "./lib/withGeminiRetry.js";
 
 const app = express();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
@@ -178,7 +179,7 @@ app.post("/api/chat", async (req, res) => {
     });
   } catch (err) {
     console.error("Error handling /api/chat:", err);
-    res.status(500).json({ error: "Something went wrong processing that request." });
+    res.status(502).json({ error: describeGeminiError(err) });
   }
 });
 
@@ -205,7 +206,7 @@ app.post("/api/kpi/draft", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("Error handling /api/kpi/draft:", err);
-    res.status(500).json({ error: "Something went wrong drafting KPIs." });
+    res.status(502).json({ error: describeGeminiError(err) });
   }
 });
 

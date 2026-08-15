@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { DECISION_TYPES, type ClassificationResult } from "./types.js";
+import { withGeminiRetry } from "../lib/withGeminiRetry.js";
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -48,15 +49,17 @@ const FAIL_CLOSED_RESULT: ClassificationResult = {
  * failure can never accidentally invoke tools or produce a recommendation.
  */
 export async function classifyQuery(query: string): Promise<ClassificationResult> {
-  const response = await client.models.generateContent({
-    model: "gemini-flash-latest",
-    contents: query,
-    config: {
-      systemInstruction: CLASSIFIER_SYSTEM_PROMPT,
-      responseMimeType: "application/json",
-      responseJsonSchema: CLASSIFICATION_SCHEMA,
-    },
-  });
+  const response = await withGeminiRetry(() =>
+    client.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: query,
+      config: {
+        systemInstruction: CLASSIFIER_SYSTEM_PROMPT,
+        responseMimeType: "application/json",
+        responseJsonSchema: CLASSIFICATION_SCHEMA,
+      },
+    }),
+  );
 
   // Fail closed: a blocked prompt, safety-filtered output, or any other
   // reason the model produced no text gets routed to the strictest posture
