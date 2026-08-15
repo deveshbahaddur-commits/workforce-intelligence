@@ -14,8 +14,8 @@ import type { KpiDraftChatMessage, KpiItem } from "./kpi/types.js";
 import { createSession, listSessions, getSession, replaceMessages } from "./chat/chatSessionStore.js";
 import type { ChatSessionKind, ChatSessionMessage } from "./chat/types.js";
 import { attachUser, requireAuth, issueSessionCookie, clearSessionCookie } from "./auth/session.js";
-import { getPasswordHash } from "./auth/credentialStore.js";
-import { verifyPassword } from "./auth/passwordHash.js";
+import { getPasswordHash, setPasswordHash } from "./auth/credentialStore.js";
+import { hashPassword, verifyPassword } from "./auth/passwordHash.js";
 import { initSchema } from "./db/schema.js";
 
 const app = express();
@@ -29,10 +29,55 @@ app.use(attachUser);
 const PORT = Number(process.env.PORT ?? 8787);
 
 // --- Auth ---
-// Email + admin-provisioned password, checked against the HRIS sheet's
-// "Official Mail ID" for identity and a separate credential store for the
-// password hash. No self-service signup or reset — see
-// src/scripts/setPassword.ts, run directly by whoever administers this.
+// Email + password, self-service signup. Identity is the HRIS sheet's
+// "Official Mail ID" — that's the only login ID accepted, since it's also
+// the join key the reportee tree and everything else is scoped by. No
+// email verification on signup (deliberately, for now — see memory/
+// conversation for the tradeoff): anyone who knows a manager's official
+// email can create the account for it, but only once — signup fails once
+// a password already exists for that employee, so it can't be used to
+// take over an existing account. src/scripts/setPassword.ts remains for
+// admin-driven resets.
+
+app.post("/auth/signup", async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password are required." });
+    return;
+  }
+  if (password.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters." });
+    return;
+  }
+
+  try {
+    const employee = EMPLOYEES.find((e) => e.email === email);
+    if (!employee) {
+      res.status(404).json({ error: "That email isn't linked to an employee record." });
+      return;
+    }
+    const existingHash = await getPasswordHash(employee.employeeId);
+    if (existingHash) {
+      res.status(409).json({ error: "An account already exists for this email. Sign in instead." });
+      return;
+    }
+
+    await setPasswordHash(employee.employeeId, hashPassword(password));
+
+    const sessionUser = {
+      email: employee.email,
+      name: employee.name,
+      employeeId: employee.employeeId,
+      role: employee.role,
+    };
+    issueSessionCookie(res, sessionUser);
+    res.json({ user: sessionUser });
+  } catch (err) {
+    console.error("Error handling /auth/signup:", err);
+    res.status(500).json({ error: "Something went wrong creating your account." });
+  }
+});
 
 app.post("/auth/login", async (req, res) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";

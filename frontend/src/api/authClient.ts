@@ -26,6 +26,20 @@ export async function login(email: string, password: string): Promise<SessionUse
   return data.user as SessionUser;
 }
 
+export async function signup(email: string, password: string): Promise<SessionUser> {
+  const res = await fetch("/auth/signup", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error ?? "Couldn't create your account.");
+  }
+  return data.user as SessionUser;
+}
+
 export async function logout(): Promise<void> {
   await fetch("/auth/logout", { method: "POST", credentials: "include" });
 }

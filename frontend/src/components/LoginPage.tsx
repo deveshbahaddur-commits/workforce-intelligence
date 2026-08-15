@@ -1,32 +1,49 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Box, Button, Paper, TextField, Typography } from "@mui/material";
-import { login, type SessionUser } from "../api/authClient.js";
+import { Alert, Box, Button, Link, Paper, TextField, Typography } from "@mui/material";
+import { login, signup, type SessionUser } from "../api/authClient.js";
 import { colors } from "../theme/colors.styles.js";
 
 interface LoginPageProps {
   onLoginSuccess: (user: SessionUser) => void;
 }
 
+type Mode = "login" | "signup";
+
 export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
+  const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError(null);
+    setPassword("");
+    setConfirmPassword("");
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password || loading) return;
+    if (mode === "signup" && password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const user = await login(email.trim(), password);
+      const user = mode === "login" ? await login(email.trim(), password) : await signup(email.trim(), password);
       onLoginSuccess(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed.");
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
     }
   }
+
+  const isLogin = mode === "login";
 
   return (
     <Box
@@ -52,10 +69,12 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           For every manager at Recykal
         </Typography>
         <Typography variant="h1" sx={{ mb: 1 }}>
-          Sign in to continue
+          {isLogin ? "Sign in to continue" : "Create your account"}
         </Typography>
         <Typography variant="caption2" sx={{ color: colors.text.muted, display: "block", mb: 3 }}>
-          Use your work email and the password you were given to access workforce planning and KRA/KPIs.
+          {isLogin
+            ? "Use your official work email and password to access workforce planning and KRA/KPIs."
+            : "Use your official work email — it's how the app matches you to your reportees. Choose a password to set up your account."}
         </Typography>
 
         {error && (
@@ -65,7 +84,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         )}
 
         <TextField
-          label="Work email"
+          label="Official work email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -79,18 +98,45 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
+          autoComplete={isLogin ? "current-password" : "new-password"}
           required
           fullWidth
-          sx={{ mb: 3 }}
+          sx={{ mb: isLogin ? 3 : 2.5 }}
+          helperText={isLogin ? undefined : "At least 8 characters"}
         />
+        {!isLogin && (
+          <TextField
+            label="Confirm password"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            required
+            fullWidth
+            sx={{ mb: 3 }}
+          />
+        )}
 
         <Button type="submit" variant="contained" fullWidth disabled={loading || !email.trim() || !password}>
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? (isLogin ? "Signing in…" : "Creating account…") : isLogin ? "Sign in" : "Create account"}
         </Button>
 
         <Typography variant="caption2" sx={{ color: colors.text.muted, display: "block", mt: 2.5 }}>
-          Don't have a password yet? Ask your admin to set one for you.
+          {isLogin ? (
+            <>
+              Don't have an account yet?{" "}
+              <Link component="button" type="button" onClick={() => switchMode("signup")} sx={{ fontWeight: 600 }}>
+                Create one
+              </Link>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <Link component="button" type="button" onClick={() => switchMode("login")} sx={{ fontWeight: 600 }}>
+                Sign in
+              </Link>
+            </>
+          )}
         </Typography>
       </Paper>
     </Box>
