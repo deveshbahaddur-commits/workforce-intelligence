@@ -4,6 +4,8 @@ import {
   Button,
   Chip,
   Grid,
+  List,
+  ListItemButton,
   Table,
   TableBody,
   TableCell,
@@ -215,17 +217,24 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={3}>
-          <AppCard sx={{ mb: 2 }}>
-            <Button
-              fullWidth
-              variant={employeeId === user.employeeId ? "contained" : "outlined"}
-              startIcon={<PersonOutlineIcon />}
-              onClick={() => setEmployeeId(user.employeeId)}
-            >
-              Set Your Own KRA/KPIs
-            </Button>
-          </AppCard>
           <AppCard>
+            <List sx={{ p: 0, mb: 1.5 }}>
+              <ListItemButton
+                selected={employeeId === user.employeeId}
+                onClick={() => setEmployeeId(user.employeeId)}
+                sx={{
+                  borderRadius: 2,
+                  gap: 0.5,
+                  "&.Mui-selected": { backgroundColor: colors.chip.primary.bg },
+                  "&.Mui-selected:hover": { backgroundColor: colors.chip.primary.bg },
+                }}
+              >
+                <PersonOutlineIcon fontSize="small" sx={{ color: colors.text.muted, mr: 1 }} />
+                <Typography variant="caption3" sx={{ color: colors.text.primary }}>
+                  Set Your Own KRA/KPIs
+                </Typography>
+              </ListItemButton>
+            </List>
             <Typography variant="overline" sx={{ color: colors.text.caption, display: "block", mb: 1.5 }}>
               Your Reportees
             </Typography>
