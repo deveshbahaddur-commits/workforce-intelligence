@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/Download";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import * as api from "../api/kraKpiClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
 import ReporteeTree from "./ReporteeTree.js";
@@ -25,6 +26,14 @@ import AppCard from "../shared/components/AppCard.js";
 import AppChip from "../shared/components/AppChip.js";
 import { colors } from "../theme/colors.styles.js";
 import { downloadScorecard } from "../utils/scorecardExport.js";
+import type { SessionUser } from "../api/authClient.js";
+
+interface SelectedSubject {
+  employeeId: string;
+  name: string;
+  role: string;
+  team?: string;
+}
 
 const BLANK_ITEM: api.KpiItem = {
   role: "",
@@ -69,7 +78,11 @@ function findInTree(nodes: api.ReporteeNode[], id: string | null): api.ReporteeN
   return null;
 }
 
-export default function KraKpiPage() {
+interface KraKpiPageProps {
+  user: SessionUser;
+}
+
+export default function KraKpiPage({ user }: KraKpiPageProps) {
   const [reporteeTree, setReporteeTree] = useState<api.ReporteeNode[]>([]);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [messages, setMessages] = useState<api.KpiDraftChatMessage[]>([]);
@@ -104,7 +117,10 @@ export default function KraKpiPage() {
       .catch((e) => setError(e.message));
   }, [employeeId]);
 
-  const selectedEmployee = findInTree(reporteeTree, employeeId);
+  const selectedEmployee: SelectedSubject | null =
+    employeeId === user.employeeId
+      ? { employeeId: user.employeeId, name: user.name, role: user.role }
+      : findInTree(reporteeTree, employeeId);
   const weightageSum = draft.reduce((sum, item) => sum + (Number(item.weightagePercent) || 0), 0);
 
   async function ensureChatSession(): Promise<number> {
@@ -195,10 +211,20 @@ export default function KraKpiPage() {
 
   return (
     <PageContainer sx={{ pt: 0 }}>
-      <PageHeader title="Set KRA/KPIs" caption="Draft KRA/KPIs for your reportees, in the standard org-wide format" />
+      <PageHeader title="Set KRA/KPIs" caption="Draft KRA/KPIs for yourself or your reportees, in the standard org-wide format" />
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={3}>
+          <AppCard sx={{ mb: 2 }}>
+            <Button
+              fullWidth
+              variant={employeeId === user.employeeId ? "contained" : "outlined"}
+              startIcon={<PersonOutlineIcon />}
+              onClick={() => setEmployeeId(user.employeeId)}
+            >
+              Set Your Own KRA/KPIs
+            </Button>
+          </AppCard>
           <AppCard>
             <Typography variant="overline" sx={{ color: colors.text.caption, display: "block", mb: 1.5 }}>
               Your Reportees
@@ -210,7 +236,7 @@ export default function KraKpiPage() {
         <Grid item xs={12} md={9}>
           {!employeeId && (
             <Typography variant="caption2" sx={{ color: colors.text.muted }}>
-              Select a reportee to start drafting KPIs.
+              Select a reportee, or "Set Your Own KRA/KPIs", to start drafting.
             </Typography>
           )}
 

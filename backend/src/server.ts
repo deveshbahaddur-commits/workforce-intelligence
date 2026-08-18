@@ -7,7 +7,7 @@ import { evaluateGuardrail } from "./guardrails/router.js";
 import { runWorkforcePlanningAgent } from "./agent/agentRunner.js";
 import { logInteraction, getRecentAuditRecords } from "./audit/auditLogger.js";
 import { EMPLOYEES, initHrisData } from "./mcp/hris/data/seed.js";
-import { getReporteeTree, isReporteeOf } from "./mcp/hris/orgChart.js";
+import { getReporteeTree, canSetKrasFor } from "./mcp/hris/orgChart.js";
 import { draftKpis } from "./kpi/kpiAgentRunner.js";
 import { saveKpiSet, listKpiSetsForEmployee } from "./kpi/kpiStore.js";
 import type { KpiDraftChatMessage, KpiItem } from "./kpi/types.js";
@@ -196,8 +196,8 @@ app.post("/api/kpi/draft", async (req, res) => {
     res.status(400).json({ error: "Request body must include employeeId and a history array." });
     return;
   }
-  if (!isReporteeOf(managerId, employeeId)) {
-    res.status(403).json({ error: "That employee is not one of your reportees." });
+  if (!canSetKrasFor(managerId, employeeId)) {
+    res.status(403).json({ error: "You can only set KRA/KPIs for yourself or your reportees." });
     return;
   }
 
@@ -217,8 +217,8 @@ app.post("/api/kpi/sets", async (req, res) => {
     res.status(400).json({ error: "Request body must include employeeId and a non-empty items array." });
     return;
   }
-  if (!isReporteeOf(managerId, employeeId)) {
-    res.status(403).json({ error: "That employee is not one of your reportees." });
+  if (!canSetKrasFor(managerId, employeeId)) {
+    res.status(403).json({ error: "You can only set KRA/KPIs for yourself or your reportees." });
     return;
   }
   const employee = EMPLOYEES.find((e) => e.employeeId === employeeId)!;
@@ -244,8 +244,8 @@ app.get("/api/kpi/sets", async (req, res) => {
     res.status(400).json({ error: "Query param employeeId is required." });
     return;
   }
-  if (!isReporteeOf(req.user!.employeeId, employeeId)) {
-    res.status(403).json({ error: "That employee is not one of your reportees." });
+  if (!canSetKrasFor(req.user!.employeeId, employeeId)) {
+    res.status(403).json({ error: "You can only view KRA/KPIs for yourself or your reportees." });
     return;
   }
   try {
@@ -273,8 +273,8 @@ app.post("/api/chat/sessions", async (req, res) => {
     res.status(400).json({ error: "Request body must include a valid kind." });
     return;
   }
-  if (employeeId && !isReporteeOf(req.user!.employeeId, employeeId)) {
-    res.status(403).json({ error: "That employee is not one of your reportees." });
+  if (employeeId && !canSetKrasFor(req.user!.employeeId, employeeId)) {
+    res.status(403).json({ error: "You can only manage chats for yourself or your reportees." });
     return;
   }
   try {

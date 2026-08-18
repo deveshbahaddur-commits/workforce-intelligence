@@ -62,3 +62,13 @@ export function flattenReporteeTree(nodes: ReporteeNode[]): ReporteeNode[] {
 export function isReporteeOf(managerId: string, employeeId: string): boolean {
   return flattenReporteeTree(getReporteeTree(managerId)).some((n) => n.employeeId === employeeId);
 }
+
+/**
+ * The authorization check for every KRA/KPI and drafting-chat route: a
+ * manager may act on their own record (draft/save their own goals) or any
+ * reportee's — nothing else. Use this instead of isReporteeOf directly for
+ * that purpose; isReporteeOf alone would wrongly exclude "self".
+ */
+export function canSetKrasFor(managerId: string, employeeId: string): boolean {
+  return employeeId === managerId || isReporteeOf(managerId, employeeId);
+}

@@ -38,7 +38,7 @@ export default function App() {
           <Box sx={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden" }}>
             {view === "home" && <HomePage onNavigate={setView} />}
             {view === "workforce-planning" && <ChatWindow />}
-            {view === "kra-kpi" && <KraKpiPage />}
+            {view === "kra-kpi" && <KraKpiPage user={user} />}
           </Box>
         </Box>
       )}
