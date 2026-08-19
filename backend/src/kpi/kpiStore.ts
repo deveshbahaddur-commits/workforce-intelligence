@@ -91,9 +91,18 @@ export async function listKpiSetsForEmployee(employeeId: string): Promise<KpiSet
     sql: `SELECT * FROM kpi_sets WHERE employee_id = ? ORDER BY id DESC`,
     args: [employeeId],
   });
+  return hydrateSets(setRows.rows);
+}
 
+/** Admin-only: every saved KPI set across the whole org, newest first. */
+export async function listAllKpiSets(): Promise<KpiSet[]> {
+  const setRows = await db.execute(`SELECT * FROM kpi_sets ORDER BY id DESC`);
+  return hydrateSets(setRows.rows);
+}
+
+async function hydrateSets(setRows: Row[]): Promise<KpiSet[]> {
   const sets: KpiSet[] = [];
-  for (const setRow of setRows.rows) {
+  for (const setRow of setRows) {
     const itemRows = await db.execute({
       sql: `SELECT * FROM kpi_items WHERE set_id = ? ORDER BY sort_order ASC`,
       args: [setRow.id as number],

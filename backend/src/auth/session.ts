@@ -11,6 +11,7 @@ export interface SessionUser {
   name: string;
   employeeId: string;
   role: string;
+  isAdmin: boolean;
 }
 
 export function issueSessionCookie(res: Response, user: SessionUser): void {
@@ -58,6 +59,15 @@ export function attachUser(req: Request, _res: Response, next: NextFunction): vo
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({ error: "Not signed in." });
+    return;
+  }
+  next();
+}
+
+/** Route guard for /api/admin/* — requires requireAuth to have already run. */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user?.isAdmin) {
+    res.status(403).json({ error: "Admin access required." });
     return;
   }
   next();

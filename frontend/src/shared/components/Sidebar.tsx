@@ -1,16 +1,23 @@
 import { Box, Divider, List, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import { dims } from "../../theme/dims.js";
 import { colors } from "../../theme/colors.styles.js";
 import type { SessionUser } from "../../api/authClient.js";
 
-export type View = "home" | "workforce-planning" | "kra-kpi";
+export type View = "home" | "workforce-planning" | "kra-kpi" | "admin";
 
 const NAV_ITEMS: Array<{ view: View; label: string; icon: JSX.Element }> = [
   { view: "workforce-planning", label: "Workforce Planning", icon: <ForumOutlinedIcon fontSize="small" /> },
   { view: "kra-kpi", label: "Set KRA/KPIs", icon: <AssignmentTurnedInOutlinedIcon fontSize="small" /> },
 ];
+
+const ADMIN_NAV_ITEM: { view: View; label: string; icon: JSX.Element } = {
+  view: "admin",
+  label: "Admin",
+  icon: <AdminPanelSettingsOutlinedIcon fontSize="small" />,
+};
 
 interface SidebarProps {
   view: View;
@@ -20,6 +27,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ view, onNavigate, user, onLogout }: SidebarProps) {
+  const navItems = user.isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
   return (
     <Box
       sx={{
@@ -50,7 +58,7 @@ export default function Sidebar({ view, onNavigate, user, onLogout }: SidebarPro
       </Box>
 
       <List sx={{ flex: 1, px: 2, py: 2 }}>
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <ListItemButton
             key={item.view}
             selected={view === item.view}

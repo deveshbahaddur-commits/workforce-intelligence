@@ -18,6 +18,8 @@ services:
         sync: false
       - key: TURSO_AUTH_TOKEN
         sync: false
+      - key: ADMIN_EMAILS
+        sync: false
       - key: HRIS_SHEET_GID
         value: "0"
       - key: HRIS_SHEET_CACHE_TTL_MS

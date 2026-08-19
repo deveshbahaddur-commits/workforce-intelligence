@@ -83,4 +83,14 @@ export async function initSchema(): Promise<void> {
       updated_at TEXT NOT NULL
     );
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS org_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content_json TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_by_name TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
 }

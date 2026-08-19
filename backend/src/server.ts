@@ -9,15 +9,20 @@ import { logInteraction, getRecentAuditRecords } from "./audit/auditLogger.js";
 import { EMPLOYEES, initHrisData } from "./mcp/hris/data/seed.js";
 import { getReporteeTree, canSetKrasFor } from "./mcp/hris/orgChart.js";
 import { draftKpis } from "./kpi/kpiAgentRunner.js";
-import { saveKpiSet, listKpiSetsForEmployee } from "./kpi/kpiStore.js";
+import { saveKpiSet, listKpiSetsForEmployee, listAllKpiSets } from "./kpi/kpiStore.js";
 import type { KpiDraftChatMessage, KpiItem } from "./kpi/types.js";
 import { createSession, listSessions, getSession, replaceMessages } from "./chat/chatSessionStore.js";
 import type { ChatSessionKind, ChatSessionMessage } from "./chat/types.js";
-import { attachUser, requireAuth, issueSessionCookie, clearSessionCookie } from "./auth/session.js";
+import { attachUser, requireAuth, requireAdmin, issueSessionCookie, clearSessionCookie } from "./auth/session.js";
 import { getPasswordHash, setPasswordHash } from "./auth/credentialStore.js";
 import { hashPassword, verifyPassword } from "./auth/passwordHash.js";
+import { isAdminEmail } from "./auth/adminAllowlist.js";
 import { initSchema } from "./db/schema.js";
 import { describeGeminiError } from "./lib/withGeminiRetry.js";
+import { draftOrgGoals } from "./orgGoals/orgGoalsAgentRunner.js";
+import { saveOrgGoals, getCurrentOrgGoals } from "./orgGoals/orgGoalsStore.js";
+import type { OrgGoalDraftChatMessage, OrgGoalItem } from "./orgGoals/types.js";
+import { assessAlignment } from "./admin/alignmentRunner.js";
 
 const app = express();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
@@ -71,6 +76,7 @@ app.post("/auth/signup", async (req, res) => {
       name: employee.name,
       employeeId: employee.employeeId,
       role: employee.role,
+      isAdmin: isAdminEmail(employee.email),
     };
     issueSessionCookie(res, sessionUser);
     res.json({ user: sessionUser });
@@ -110,6 +116,7 @@ app.post("/auth/login", async (req, res) => {
       name: employee.name,
       employeeId: employee.employeeId,
       role: employee.role,
+      isAdmin: isAdminEmail(employee.email),
     };
     issueSessionCookie(res, sessionUser);
     res.json({ user: sessionUser });
@@ -196,7 +203,7 @@ app.post("/api/kpi/draft", async (req, res) => {
     res.status(400).json({ error: "Request body must include employeeId and a history array." });
     return;
   }
-  if (!canSetKrasFor(managerId, employeeId)) {
+  if (!canSetKrasFor(managerId, employeeId, req.user!.isAdmin)) {
     res.status(403).json({ error: "You can only set KRA/KPIs for yourself or your reportees." });
     return;
   }
@@ -217,7 +224,7 @@ app.post("/api/kpi/sets", async (req, res) => {
     res.status(400).json({ error: "Request body must include employeeId and a non-empty items array." });
     return;
   }
-  if (!canSetKrasFor(managerId, employeeId)) {
+  if (!canSetKrasFor(managerId, employeeId, req.user!.isAdmin)) {
     res.status(403).json({ error: "You can only set KRA/KPIs for yourself or your reportees." });
     return;
   }
@@ -244,7 +251,7 @@ app.get("/api/kpi/sets", async (req, res) => {
     res.status(400).json({ error: "Query param employeeId is required." });
     return;
   }
-  if (!canSetKrasFor(req.user!.employeeId, employeeId)) {
+  if (!canSetKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin)) {
     res.status(403).json({ error: "You can only view KRA/KPIs for yourself or your reportees." });
     return;
   }
@@ -273,7 +280,7 @@ app.post("/api/chat/sessions", async (req, res) => {
     res.status(400).json({ error: "Request body must include a valid kind." });
     return;
   }
-  if (employeeId && !canSetKrasFor(req.user!.employeeId, employeeId)) {
+  if (employeeId && !canSetKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin)) {
     res.status(403).json({ error: "You can only manage chats for yourself or your reportees." });
     return;
   }
@@ -333,6 +340,97 @@ app.put("/api/chat/sessions/:id/messages", async (req, res) => {
   } catch (err) {
     console.error("Error handling PUT /api/chat/sessions/:id/messages:", err);
     res.status(500).json({ error: "Something went wrong saving the chat session." });
+  }
+});
+
+// --- Admin section ---
+// Gated by requireAdmin on top of the /api-wide requireAuth above, so every
+// route below needs both a signed-in session AND req.user.isAdmin.
+app.use("/api/admin", requireAdmin);
+
+/** Every active employee, for the admin "build anyone's KPIs" picker — not scoped to any reportee tree. */
+app.get("/api/admin/employees", (_req, res) => {
+  res.json(
+    EMPLOYEES.filter((e) => e.status === "active").map((e) => ({
+      employeeId: e.employeeId,
+      name: e.name,
+      role: e.role,
+      team: e.team,
+    })),
+  );
+});
+
+/** Every saved KPI set org-wide — "what people are building." */
+app.get("/api/admin/kpi-sets", async (_req, res) => {
+  try {
+    res.json(await listAllKpiSets());
+  } catch (err) {
+    console.error("Error handling GET /api/admin/kpi-sets:", err);
+    res.status(500).json({ error: "Something went wrong loading KPI sets." });
+  }
+});
+
+app.get("/api/admin/org-goals", async (_req, res) => {
+  try {
+    res.json(await getCurrentOrgGoals());
+  } catch (err) {
+    console.error("Error handling GET /api/admin/org-goals:", err);
+    res.status(500).json({ error: "Something went wrong loading org goals." });
+  }
+});
+
+app.post("/api/admin/org-goals/draft", async (req, res) => {
+  const { history } = req.body ?? {};
+  if (!Array.isArray(history)) {
+    res.status(400).json({ error: "Request body must include a history array." });
+    return;
+  }
+  try {
+    const result = await draftOrgGoals({ history: history as OrgGoalDraftChatMessage[] });
+    res.json(result);
+  } catch (err) {
+    console.error("Error handling /api/admin/org-goals/draft:", err);
+    res.status(502).json({ error: describeGeminiError(err) });
+  }
+});
+
+app.post("/api/admin/org-goals", async (req, res) => {
+  const { content } = req.body ?? {};
+  if (!Array.isArray(content) || content.length === 0) {
+    res.status(400).json({ error: "Request body must include a non-empty content array." });
+    return;
+  }
+  try {
+    const saved = await saveOrgGoals({
+      content: content as OrgGoalItem[],
+      createdBy: req.user!.employeeId,
+      createdByName: req.user!.name,
+    });
+    res.json(saved);
+  } catch (err) {
+    console.error("Error handling POST /api/admin/org-goals:", err);
+    res.status(500).json({ error: "Something went wrong saving org goals." });
+  }
+});
+
+/** Checks a set of KRAs against the current org goals — a Gemini call per click, not run automatically. */
+app.post("/api/admin/alignment", async (req, res) => {
+  const { items } = req.body ?? {};
+  if (!Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: "Request body must include a non-empty items array." });
+    return;
+  }
+  try {
+    const orgGoals = await getCurrentOrgGoals();
+    if (!orgGoals || orgGoals.content.length === 0) {
+      res.status(400).json({ error: "No org goals have been set yet — draft and save them first." });
+      return;
+    }
+    const results = await assessAlignment({ kraItems: items as KpiItem[], orgGoals: orgGoals.content });
+    res.json({ results });
+  } catch (err) {
+    console.error("Error handling /api/admin/alignment:", err);
+    res.status(502).json({ error: describeGeminiError(err) });
   }
 });
 

@@ -3,6 +3,7 @@ export interface SessionUser {
   name: string;
   employeeId: string;
   role: string;
+  isAdmin: boolean;
 }
 
 export async function getMe(): Promise<SessionUser | null> {

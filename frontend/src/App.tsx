@@ -5,6 +5,7 @@ import Sidebar, { type View } from "./shared/components/Sidebar.js";
 import HomePage from "./components/HomePage.js";
 import ChatWindow from "./components/ChatWindow.js";
 import KraKpiPage from "./components/KraKpiPage.js";
+import AdminPage from "./components/AdminPage.js";
 import LoginPage from "./components/LoginPage.js";
 import { getMe, logout, type SessionUser } from "./api/authClient.js";
 
@@ -39,6 +40,7 @@ export default function App() {
             {view === "home" && <HomePage onNavigate={setView} />}
             {view === "workforce-planning" && <ChatWindow />}
             {view === "kra-kpi" && <KraKpiPage user={user} />}
+            {view === "admin" && user.isAdmin && <AdminPage />}
           </Box>
         </Box>
       )}

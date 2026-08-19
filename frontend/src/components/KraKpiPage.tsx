@@ -12,13 +12,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/Download";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import SearchIcon from "@mui/icons-material/Search";
 import * as api from "../api/kraKpiClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
+import * as adminApi from "../api/adminClient.js";
 import ReporteeTree from "./ReporteeTree.js";
 import ChatInput from "./ChatInput.js";
 import KraTableRow from "./KraTableRow.js";
@@ -86,6 +89,8 @@ interface KraKpiPageProps {
 
 export default function KraKpiPage({ user }: KraKpiPageProps) {
   const [reporteeTree, setReporteeTree] = useState<api.ReporteeNode[]>([]);
+  const [allEmployees, setAllEmployees] = useState<adminApi.AdminEmployee[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [messages, setMessages] = useState<api.KpiDraftChatMessage[]>([]);
   const [chatSessions, setChatSessions] = useState<chatApi.ChatSessionSummary[]>([]);
@@ -100,7 +105,10 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
 
   useEffect(() => {
     api.getReporteeTree().then(setReporteeTree).catch((e) => setError(e.message));
-  }, []);
+    if (user.isAdmin) {
+      adminApi.getAllEmployees().then(setAllEmployees).catch((e) => setError(e.message));
+    }
+  }, [user.isAdmin]);
 
   useEffect(() => {
     setMessages([]);
@@ -119,10 +127,14 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
       .catch((e) => setError(e.message));
   }, [employeeId]);
 
+  const selectedFromAll = allEmployees.find((e) => e.employeeId === employeeId);
   const selectedEmployee: SelectedSubject | null =
     employeeId === user.employeeId
       ? { employeeId: user.employeeId, name: user.name, role: user.role }
-      : findInTree(reporteeTree, employeeId);
+      : findInTree(reporteeTree, employeeId) ??
+        (selectedFromAll
+          ? { employeeId: selectedFromAll.employeeId, name: selectedFromAll.name, role: selectedFromAll.role, team: selectedFromAll.team }
+          : null);
   const weightageSum = draft.reduce((sum, item) => sum + (Number(item.weightagePercent) || 0), 0);
 
   async function ensureChatSession(): Promise<number> {
@@ -240,6 +252,52 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
             </Typography>
             <ReporteeTree nodes={reporteeTree} selectedEmployeeId={employeeId} onSelect={setEmployeeId} />
           </AppCard>
+
+          {user.isAdmin && (
+            <AppCard sx={{ mt: 2 }}>
+              <Typography variant="overline" sx={{ color: colors.text.caption, display: "block", mb: 1.5 }}>
+                All Employees (Admin)
+              </Typography>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search by name…"
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+                InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ color: colors.text.muted, mr: 1 }} /> }}
+                sx={{ mb: 1 }}
+              />
+              {employeeSearch.trim() && (
+                <List sx={{ p: 0, maxHeight: 260, overflowY: "auto" }}>
+                  {allEmployees
+                    .filter((e) => e.name.toLowerCase().includes(employeeSearch.trim().toLowerCase()))
+                    .slice(0, 30)
+                    .map((e) => (
+                      <ListItemButton
+                        key={e.employeeId}
+                        selected={employeeId === e.employeeId}
+                        onClick={() => setEmployeeId(e.employeeId)}
+                        sx={{
+                          borderRadius: 2,
+                          mb: 0.25,
+                          "&.Mui-selected": { backgroundColor: colors.chip.primary.bg },
+                          "&.Mui-selected:hover": { backgroundColor: colors.chip.primary.bg },
+                        }}
+                      >
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography variant="caption3" noWrap sx={{ color: colors.text.primary, display: "block" }}>
+                            {e.name}
+                          </Typography>
+                          <Typography variant="caption" noWrap sx={{ color: colors.text.muted }}>
+                            {e.role} · {e.team}
+                          </Typography>
+                        </Box>
+                      </ListItemButton>
+                    ))}
+                </List>
+              )}
+            </AppCard>
+          )}
         </Grid>
 
         <Grid item xs={12} md={9}>
