@@ -90,7 +90,9 @@ interface KraKpiPageProps {
 export default function KraKpiPage({ user }: KraKpiPageProps) {
   const [reporteeTree, setReporteeTree] = useState<api.ReporteeNode[]>([]);
   const [allEmployees, setAllEmployees] = useState<adminApi.AdminEmployee[]>([]);
+  const [bpEmployees, setBpEmployees] = useState<api.BpEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [bpSearch, setBpSearch] = useState("");
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [messages, setMessages] = useState<api.KpiDraftChatMessage[]>([]);
   const [chatSessions, setChatSessions] = useState<chatApi.ChatSessionSummary[]>([]);
@@ -108,7 +110,10 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
     if (user.isAdmin) {
       adminApi.getAllEmployees().then(setAllEmployees).catch((e) => setError(e.message));
     }
-  }, [user.isAdmin]);
+    if (user.bpFunctions.length > 0) {
+      api.getBpEmployees().then(setBpEmployees).catch((e) => setError(e.message));
+    }
+  }, [user.isAdmin, user.bpFunctions]);
 
   useEffect(() => {
     setMessages([]);
@@ -128,12 +133,19 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
   }, [employeeId]);
 
   const selectedFromAll = allEmployees.find((e) => e.employeeId === employeeId);
+  const selectedFromBp = bpEmployees.find((e) => e.employeeId === employeeId);
+  const selectedOutsideTree = selectedFromAll ?? selectedFromBp;
   const selectedEmployee: SelectedSubject | null =
     employeeId === user.employeeId
       ? { employeeId: user.employeeId, name: user.name, role: user.role }
       : findInTree(reporteeTree, employeeId) ??
-        (selectedFromAll
-          ? { employeeId: selectedFromAll.employeeId, name: selectedFromAll.name, role: selectedFromAll.role, team: selectedFromAll.team }
+        (selectedOutsideTree
+          ? {
+              employeeId: selectedOutsideTree.employeeId,
+              name: selectedOutsideTree.name,
+              role: selectedOutsideTree.role,
+              team: selectedOutsideTree.team,
+            }
           : null);
   const weightageSum = draft.reduce((sum, item) => sum + (Number(item.weightagePercent) || 0), 0);
 
@@ -271,6 +283,52 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
                 <List sx={{ p: 0, maxHeight: 260, overflowY: "auto" }}>
                   {allEmployees
                     .filter((e) => e.name.toLowerCase().includes(employeeSearch.trim().toLowerCase()))
+                    .slice(0, 30)
+                    .map((e) => (
+                      <ListItemButton
+                        key={e.employeeId}
+                        selected={employeeId === e.employeeId}
+                        onClick={() => setEmployeeId(e.employeeId)}
+                        sx={{
+                          borderRadius: 2,
+                          mb: 0.25,
+                          "&.Mui-selected": { backgroundColor: colors.chip.primary.bg },
+                          "&.Mui-selected:hover": { backgroundColor: colors.chip.primary.bg },
+                        }}
+                      >
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography variant="caption3" noWrap sx={{ color: colors.text.primary, display: "block" }}>
+                            {e.name}
+                          </Typography>
+                          <Typography variant="caption" noWrap sx={{ color: colors.text.muted }}>
+                            {e.role} · {e.team}
+                          </Typography>
+                        </Box>
+                      </ListItemButton>
+                    ))}
+                </List>
+              )}
+            </AppCard>
+          )}
+
+          {user.bpFunctions.length > 0 && (
+            <AppCard sx={{ mt: 2 }}>
+              <Typography variant="overline" sx={{ color: colors.text.caption, display: "block", mb: 1.5 }}>
+                Your Functions (BP)
+              </Typography>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search by name…"
+                value={bpSearch}
+                onChange={(e) => setBpSearch(e.target.value)}
+                InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ color: colors.text.muted, mr: 1 }} /> }}
+                sx={{ mb: 1 }}
+              />
+              {bpSearch.trim() && (
+                <List sx={{ p: 0, maxHeight: 260, overflowY: "auto" }}>
+                  {bpEmployees
+                    .filter((e) => e.name.toLowerCase().includes(bpSearch.trim().toLowerCase()))
                     .slice(0, 30)
                     .map((e) => (
                       <ListItemButton

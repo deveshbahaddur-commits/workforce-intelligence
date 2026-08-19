@@ -17,6 +17,7 @@ import { attachUser, requireAuth, requireAdmin, issueSessionCookie, clearSession
 import { getPasswordHash, setPasswordHash } from "./auth/credentialStore.js";
 import { hashPassword, verifyPassword } from "./auth/passwordHash.js";
 import { isAdminEmail } from "./auth/adminAllowlist.js";
+import { getBpFunctions } from "./auth/bpScope.js";
 import { initSchema } from "./db/schema.js";
 import { describeGeminiError } from "./lib/withGeminiRetry.js";
 import { draftOrgGoals } from "./orgGoals/orgGoalsAgentRunner.js";
@@ -77,6 +78,7 @@ app.post("/auth/signup", async (req, res) => {
       employeeId: employee.employeeId,
       role: employee.role,
       isAdmin: isAdminEmail(employee.email),
+      bpFunctions: getBpFunctions(employee.email),
     };
     issueSessionCookie(res, sessionUser);
     res.json({ user: sessionUser });
@@ -117,6 +119,7 @@ app.post("/auth/login", async (req, res) => {
       employeeId: employee.employeeId,
       role: employee.role,
       isAdmin: isAdminEmail(employee.email),
+      bpFunctions: getBpFunctions(employee.email),
     };
     issueSessionCookie(res, sessionUser);
     res.json({ user: sessionUser });
@@ -196,6 +199,23 @@ app.get("/api/reportees", (req, res) => {
   res.json(getReporteeTree(req.user!.employeeId));
 });
 
+/** Every active employee whose HRIS Function is in the caller's own BP scope — never a client-supplied scope. */
+app.get("/api/bp/employees", (req, res) => {
+  const bpFunctions = req.user!.bpFunctions;
+  if (bpFunctions.length === 0) {
+    res.json([]);
+    return;
+  }
+  res.json(
+    EMPLOYEES.filter((e) => e.status === "active" && bpFunctions.includes(e.team)).map((e) => ({
+      employeeId: e.employeeId,
+      name: e.name,
+      role: e.role,
+      team: e.team,
+    })),
+  );
+});
+
 app.post("/api/kpi/draft", async (req, res) => {
   const { employeeId, history } = req.body ?? {};
   const managerId = req.user!.employeeId;
@@ -203,7 +223,7 @@ app.post("/api/kpi/draft", async (req, res) => {
     res.status(400).json({ error: "Request body must include employeeId and a history array." });
     return;
   }
-  if (!canSetKrasFor(managerId, employeeId, req.user!.isAdmin)) {
+  if (!canSetKrasFor(managerId, employeeId, req.user!.isAdmin, req.user!.bpFunctions)) {
     res.status(403).json({ error: "You can only set KRA/KPIs for yourself or your reportees." });
     return;
   }
@@ -224,7 +244,7 @@ app.post("/api/kpi/sets", async (req, res) => {
     res.status(400).json({ error: "Request body must include employeeId and a non-empty items array." });
     return;
   }
-  if (!canSetKrasFor(managerId, employeeId, req.user!.isAdmin)) {
+  if (!canSetKrasFor(managerId, employeeId, req.user!.isAdmin, req.user!.bpFunctions)) {
     res.status(403).json({ error: "You can only set KRA/KPIs for yourself or your reportees." });
     return;
   }
@@ -251,7 +271,7 @@ app.get("/api/kpi/sets", async (req, res) => {
     res.status(400).json({ error: "Query param employeeId is required." });
     return;
   }
-  if (!canSetKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin)) {
+  if (!canSetKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin, req.user!.bpFunctions)) {
     res.status(403).json({ error: "You can only view KRA/KPIs for yourself or your reportees." });
     return;
   }
@@ -280,7 +300,7 @@ app.post("/api/chat/sessions", async (req, res) => {
     res.status(400).json({ error: "Request body must include a valid kind." });
     return;
   }
-  if (employeeId && !canSetKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin)) {
+  if (employeeId && !canSetKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin, req.user!.bpFunctions)) {
     res.status(403).json({ error: "You can only manage chats for yourself or your reportees." });
     return;
   }

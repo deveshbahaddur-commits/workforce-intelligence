@@ -66,10 +66,19 @@ export function isReporteeOf(managerId: string, employeeId: string): boolean {
 /**
  * The authorization check for every KRA/KPI and drafting-chat route: a
  * manager may act on their own record (draft/save their own goals) or any
- * reportee's; an admin may act on anyone's. Use this instead of
- * isReporteeOf directly for that purpose; isReporteeOf alone would wrongly
- * exclude both "self" and "admin acting on an unrelated employee".
+ * reportee's; an admin may act on anyone's; a Business Partner may act on
+ * anyone whose HRIS Function is in their scope, regardless of reporting
+ * line. Use this instead of isReporteeOf directly for that purpose;
+ * isReporteeOf alone would wrongly exclude "self", "admin", and "BP".
  */
-export function canSetKrasFor(managerId: string, employeeId: string, isAdmin: boolean): boolean {
-  return isAdmin || employeeId === managerId || isReporteeOf(managerId, employeeId);
+export function canSetKrasFor(
+  managerId: string,
+  employeeId: string,
+  isAdmin: boolean,
+  bpFunctions: string[] = [],
+): boolean {
+  if (isAdmin || employeeId === managerId || isReporteeOf(managerId, employeeId)) return true;
+  if (bpFunctions.length === 0) return false;
+  const employee = EMPLOYEES.find((e) => e.employeeId === employeeId);
+  return employee !== undefined && bpFunctions.includes(employee.team);
 }

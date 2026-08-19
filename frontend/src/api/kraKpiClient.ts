@@ -71,6 +71,17 @@ export function getReporteeTree(): Promise<ReporteeNode[]> {
   return fetch("/api/reportees", { credentials: "include" }).then(asJson<ReporteeNode[]>);
 }
 
+/** Every active employee in the signed-in user's own BP scope — empty array if they're not a BP for anything. */
+export interface BpEmployee {
+  employeeId: string;
+  name: string;
+  role: string;
+  team: string;
+}
+export function getBpEmployees(): Promise<BpEmployee[]> {
+  return fetch("/api/bp/employees", { credentials: "include" }).then(asJson<BpEmployee[]>);
+}
+
 export function draftKpis(params: { employeeId: string; history: KpiDraftChatMessage[] }): Promise<{
   reply: string;
   draftKpis: KpiItem[];

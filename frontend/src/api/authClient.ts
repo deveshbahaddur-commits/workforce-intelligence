@@ -4,6 +4,7 @@ export interface SessionUser {
   employeeId: string;
   role: string;
   isAdmin: boolean;
+  bpFunctions: string[];
 }
 
 export async function getMe(): Promise<SessionUser | null> {

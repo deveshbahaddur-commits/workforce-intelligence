@@ -12,6 +12,7 @@ export interface SessionUser {
   employeeId: string;
   role: string;
   isAdmin: boolean;
+  bpFunctions: string[];
 }
 
 export function issueSessionCookie(res: Response, user: SessionUser): void {
