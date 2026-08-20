@@ -54,11 +54,12 @@ export async function assessAlignment(params: {
   const prompt = `Organisation goals for this period:
 ${params.orgGoals.map((g) => `- ${g.title}: ${g.description}`).join("\n")}
 
-Employee's KRAs to assess:
-${params.kraItems.map((k) => `- ${k.kra}: ${k.goalAnnual}`).join("\n")}
+Employee's KRAs to assess, numbered:
+${params.kraItems.map((k, i) => `${i + 1}. Name: ${k.kra}\n   Goal: ${k.goalAnnual}`).join("\n")}
 
-For each KRA listed above, judge how well it supports the organisation's stated goals above. Return exactly one
-result per KRA, in the same order given, using the exact KRA name as provided.`;
+For each numbered KRA above, judge how well it supports the organisation's stated goals. Return exactly one
+result per KRA, in the same order given. The "kra" field in your response must be ONLY that KRA's Name line —
+never include its Goal text.`;
 
   const response = await withGeminiRetry(() =>
     client.models.generateContent({
@@ -74,5 +75,11 @@ result per KRA, in the same order given, using the exact KRA name as provided.`;
   const text = response.text;
   if (!text) return [];
   const parsed = JSON.parse(text) as { results: AlignmentResult[] };
+
+  // Belt-and-suspenders: trust our own input order over whatever the model
+  // echoed back for "kra" — cheaper and more robust than prompt-tuning alone.
+  if (parsed.results.length === params.kraItems.length) {
+    return parsed.results.map((r, i) => ({ ...r, kra: params.kraItems[i].kra }));
+  }
   return parsed.results;
 }
