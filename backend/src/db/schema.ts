@@ -85,6 +85,20 @@ export async function initSchema(): Promise<void> {
   `);
 
   await db.execute(`
+    CREATE TABLE IF NOT EXISTS kpi_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      kpi_set_id INTEGER NOT NULL,
+      employee_id TEXT NOT NULL,
+      employee_name TEXT NOT NULL,
+      saved_by_id TEXT NOT NULL,
+      saved_by_name TEXT NOT NULL,
+      items_json TEXT NOT NULL
+    );
+  `);
+
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS org_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       content_json TEXT NOT NULL,
