@@ -64,14 +64,45 @@ export function isReporteeOf(managerId: string, employeeId: string): boolean {
 }
 
 /**
- * The authorization check for every KRA/KPI and drafting-chat route: a
- * manager may act on their own record (draft/save their own goals) or any
- * reportee's; an admin may act on anyone's; a Business Partner may act on
- * anyone whose HRIS Function is in their scope, regardless of reporting
- * line. Use this instead of isReporteeOf directly for that purpose;
- * isReporteeOf alone would wrongly exclude "self", "admin", and "BP".
+ * Whether `employeeId` is a DIRECT report of `managerId` only (depth 1) —
+ * narrower than isReporteeOf, which includes the whole recursive chain.
+ * getReporteeTree's own top-level return value is already just the direct
+ * reports, so no depth-field check is needed here.
+ */
+export function isDirectReportOf(managerId: string, employeeId: string): boolean {
+  return getReporteeTree(managerId).some((n) => n.employeeId === employeeId);
+}
+
+/**
+ * The authorization check for every KRA/KPI EDIT action (drafting, saving,
+ * starting a drafting chat): a manager may act on their own record, or a
+ * DIRECT report's — not an indirect one, per PRD v3 §6. An admin may act on
+ * anyone's; a Business Partner may act on anyone whose HRIS Function is in
+ * their scope, regardless of reporting line. Indirect reports are read-only
+ * — see canViewKrasFor for that broader, view-only check.
  */
 export function canSetKrasFor(
+  managerId: string,
+  employeeId: string,
+  isAdmin: boolean,
+  bpFunctions: string[] = [],
+): boolean {
+  if (isAdmin || employeeId === managerId || isDirectReportOf(managerId, employeeId)) return true;
+  if (bpFunctions.length === 0) return false;
+  const employee = EMPLOYEES.find((e) => e.employeeId === employeeId);
+  return employee !== undefined && bpFunctions.includes(employee.team);
+}
+
+/**
+ * The authorization check for VIEWING (never editing) saved KPI sets: self,
+ * anyone in the full recursive reporting chain (direct or indirect — the
+ * "skip-level read access" case from PRD v3 §6), an admin, or a BP in
+ * scope. Same shape as canSetKrasFor but with the full chain instead of
+ * direct-reports-only. Anyone this returns true for who ISN'T ALSO covered
+ * by canSetKrasFor (i.e. an indirect report) gets read-only access only —
+ * call sites must not use this to gate a draft/save/chat-creation action.
+ */
+export function canViewKrasFor(
   managerId: string,
   employeeId: string,
   isAdmin: boolean,

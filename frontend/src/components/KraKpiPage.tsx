@@ -19,6 +19,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/Download";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SearchIcon from "@mui/icons-material/Search";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import * as api from "../api/kraKpiClient.js";
 import * as chatApi from "../api/chatSessionClient.js";
 import * as adminApi from "../api/adminClient.js";
@@ -115,6 +116,32 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
     }
   }, [user.isAdmin, user.bpFunctions]);
 
+  const selectedFromAll = allEmployees.find((e) => e.employeeId === employeeId);
+  const selectedFromBp = bpEmployees.find((e) => e.employeeId === employeeId);
+  const selectedOutsideTree = selectedFromAll ?? selectedFromBp;
+  const foundInTree = findInTree(reporteeTree, employeeId);
+  const selectedEmployee: SelectedSubject | null =
+    employeeId === user.employeeId
+      ? { employeeId: user.employeeId, name: user.name, role: user.role }
+      : foundInTree ??
+        (selectedOutsideTree
+          ? {
+              employeeId: selectedOutsideTree.employeeId,
+              name: selectedOutsideTree.name,
+              role: selectedOutsideTree.role,
+              team: selectedOutsideTree.team,
+            }
+          : null);
+
+  // Mirrors the backend's canSetKrasFor exactly: self, admin, BP-in-scope,
+  // or a DIRECT report only — an indirect report (depth > 1 in the
+  // reportee tree) is read-only, per PRD v3 §6.
+  const canEdit =
+    employeeId === user.employeeId ||
+    user.isAdmin ||
+    selectedFromBp !== undefined ||
+    (foundInTree !== null && foundInTree.depth === 1);
+
   useEffect(() => {
     setMessages([]);
     setDraft([]);
@@ -126,27 +153,15 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
       return;
     }
     api.getKpiSets(employeeId).then(setSavedSets).catch((e) => setError(e.message));
-    chatApi
-      .listChatSessions({ kind: "kra-kpi", employeeId })
-      .then(setChatSessions)
-      .catch((e) => setError(e.message));
-  }, [employeeId]);
+    if (canEdit) {
+      chatApi
+        .listChatSessions({ kind: "kra-kpi", employeeId })
+        .then(setChatSessions)
+        .catch((e) => setError(e.message));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, canEdit]);
 
-  const selectedFromAll = allEmployees.find((e) => e.employeeId === employeeId);
-  const selectedFromBp = bpEmployees.find((e) => e.employeeId === employeeId);
-  const selectedOutsideTree = selectedFromAll ?? selectedFromBp;
-  const selectedEmployee: SelectedSubject | null =
-    employeeId === user.employeeId
-      ? { employeeId: user.employeeId, name: user.name, role: user.role }
-      : findInTree(reporteeTree, employeeId) ??
-        (selectedOutsideTree
-          ? {
-              employeeId: selectedOutsideTree.employeeId,
-              name: selectedOutsideTree.name,
-              role: selectedOutsideTree.role,
-              team: selectedOutsideTree.team,
-            }
-          : null);
   const weightageSum = draft.reduce((sum, item) => sum + (Number(item.weightagePercent) || 0), 0);
 
   async function ensureChatSession(): Promise<number> {
@@ -367,13 +382,47 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
 
           {employeeId && selectedEmployee && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Typography variant="subtitle2">
-                KRA/KPIs for {selectedEmployee.name}{" "}
-                <Typography component="span" variant="caption2" sx={{ color: colors.text.muted }}>
-                  ({selectedEmployee.role})
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                <Typography variant="subtitle2">
+                  KRA/KPIs for {selectedEmployee.name}{" "}
+                  <Typography component="span" variant="caption2" sx={{ color: colors.text.muted }}>
+                    ({selectedEmployee.role})
+                  </Typography>
                 </Typography>
-              </Typography>
+                {!canEdit && (
+                  <AppChip
+                    label="Read-only · reporting chain"
+                    variant="warning"
+                  />
+                )}
+              </Box>
 
+              {!canEdit && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    gap: 1.25,
+                    alignItems: "flex-start",
+                    border: `1px solid ${colors.gray[300]}`,
+                    background: colors.gray[50],
+                    borderRadius: 2,
+                    px: 2,
+                    py: 1.5,
+                  }}
+                >
+                  <InfoOutlinedIcon fontSize="small" sx={{ color: colors.text.muted, mt: "1px" }} />
+                  <Typography variant="caption2" sx={{ color: colors.text.secondary }}>
+                    You're viewing this read-only because {selectedEmployee.name} is further down your reporting
+                    chain, not a direct report — only their direct manager can draft or edit their KRA/KPIs. This
+                    list may also be incomplete: if someone you'd expect to see under a direct report isn't showing
+                    up, their record (or someone above them in the chain) may have a missing or incorrect reporting-
+                    manager entry in the HRIS data, which breaks the chain silently rather than showing an error.
+                  </Typography>
+                </Box>
+              )}
+
+              {canEdit && (
+              <>
               <AppCard sx={{ background: colors.gray[100] }}>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
                   <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={handleNewChat}>
@@ -496,11 +545,14 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
                   </Box>
                 </AppCard>
               )}
+              </>
+              )}
 
-              {savedSets.length > 0 && (
+              {savedSets.length > 0 ? (
                 <AppCard>
                   <Typography variant="subtitle3" sx={{ mb: 1.5, display: "block" }}>
-                    Saved KPI Sets for {selectedEmployee.name}
+                    {canEdit ? "Saved KPI Sets for " : "Finalized scorecards for "}
+                    {selectedEmployee.name}
                   </Typography>
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                     {savedSets.map((set) => (
@@ -540,6 +592,12 @@ export default function KraKpiPage({ user }: KraKpiPageProps) {
                     ))}
                   </Box>
                 </AppCard>
+              ) : (
+                !canEdit && (
+                  <Typography variant="caption2" sx={{ color: colors.text.muted }}>
+                    No finalized scorecards yet for {selectedEmployee.name}.
+                  </Typography>
+                )
               )}
             </Box>
           )}

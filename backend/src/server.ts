@@ -5,11 +5,12 @@ import path from "node:path";
 import fs from "node:fs";
 import { evaluateGuardrail } from "./guardrails/router.js";
 import { runWorkforcePlanningAgent } from "./agent/agentRunner.js";
-import { logInteraction, getRecentAuditRecords } from "./audit/auditLogger.js";
+import { logInteraction, getRecentAuditRecords, logKpiSetSaved, getRecentKpiAuditRecords } from "./audit/auditLogger.js";
 import { EMPLOYEES, initHrisData } from "./mcp/hris/data/seed.js";
-import { getReporteeTree, canSetKrasFor } from "./mcp/hris/orgChart.js";
+import { getReporteeTree, canSetKrasFor, canViewKrasFor } from "./mcp/hris/orgChart.js";
 import { draftKpis } from "./kpi/kpiAgentRunner.js";
 import { saveKpiSet, listKpiSetsForEmployee, listAllKpiSets } from "./kpi/kpiStore.js";
+import { validateKpiSet } from "./kpi/kpiSetValidation.js";
 import type { KpiDraftChatMessage, KpiItem } from "./kpi/types.js";
 import { createSession, listSessions, getSession, replaceMessages } from "./chat/chatSessionStore.js";
 import type { ChatSessionKind, ChatSessionMessage } from "./chat/types.js";
@@ -248,9 +249,23 @@ app.post("/api/kpi/sets", async (req, res) => {
     res.status(403).json({ error: "You can only set KRA/KPIs for yourself or your reportees." });
     return;
   }
+  const violations = validateKpiSet(items as KpiItem[]);
+  if (violations.length > 0) {
+    res.status(400).json({ error: violations.join(" ") });
+    return;
+  }
   const employee = EMPLOYEES.find((e) => e.employeeId === employeeId)!;
 
   try {
+    // Read-then-insert, isolated to the logging path — this must run BEFORE
+    // saveKpiSet's own INSERT, or the just-saved row would count itself and
+    // every save would look like a "revision". The current data model has
+    // no cycle field on kpi_sets (see kpi/types.ts), so this checks "any
+    // prior saved set for this employee," not "same cycle" specifically —
+    // that distinction needs the cycle-entity rework to be meaningful.
+    const priorSets = await listKpiSetsForEmployee(employeeId);
+    const kind: "initial" | "revision" = priorSets.length === 0 ? "initial" : "revision";
+
     const saved = await saveKpiSet({
       employeeId,
       employeeName: employee.name,
@@ -258,6 +273,20 @@ app.post("/api/kpi/sets", async (req, res) => {
       managerName: req.user!.name,
       items: items as KpiItem[],
     });
+
+    // Fire only now — after validateKpiSet passed above AND the save itself
+    // succeeded — so a rejected or failed save never shows up in the audit
+    // trail looking like it went through.
+    logKpiSetSaved({
+      kind,
+      kpiSetId: saved.id,
+      employeeId: saved.employeeId,
+      employeeName: saved.employeeName,
+      savedById: managerId,
+      savedByName: req.user!.name,
+      items: saved.items,
+    }).catch((err) => console.error("Failed to write KPI audit record:", err));
+
     res.json(saved);
   } catch (err) {
     console.error("Error handling POST /api/kpi/sets:", err);
@@ -271,8 +300,10 @@ app.get("/api/kpi/sets", async (req, res) => {
     res.status(400).json({ error: "Query param employeeId is required." });
     return;
   }
-  if (!canSetKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin, req.user!.bpFunctions)) {
-    res.status(403).json({ error: "You can only view KRA/KPIs for yourself or your reportees." });
+  // Broader than the edit check on purpose — anyone in the full reporting
+  // chain (not just direct reports) can VIEW saved sets read-only.
+  if (!canViewKrasFor(req.user!.employeeId, employeeId, req.user!.isAdmin, req.user!.bpFunctions)) {
+    res.status(403).json({ error: "You can only view KRA/KPIs for yourself or people in your reporting chain." });
     return;
   }
   try {
@@ -451,6 +482,16 @@ app.post("/api/admin/alignment", async (req, res) => {
   } catch (err) {
     console.error("Error handling /api/admin/alignment:", err);
     res.status(502).json({ error: describeGeminiError(err) });
+  }
+});
+
+// Read-only visibility into the KPI audit log — mirrors GET /api/audit below.
+app.get("/api/admin/kpi-audit-log", async (_req, res) => {
+  try {
+    res.json(await getRecentKpiAuditRecords(50));
+  } catch (err) {
+    console.error("Error handling GET /api/admin/kpi-audit-log:", err);
+    res.status(500).json({ error: "Something went wrong loading the KPI audit log." });
   }
 });
 
